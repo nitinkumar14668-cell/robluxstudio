@@ -1,0 +1,6 @@
+{
+  "name": "Roblox Studio Web - 3D Game Creator & Publisher",
+  "description": "Full-featured web recreation of Roblox Studio. Build 3D worlds, write Lua scripts, test with an avatar, and publish games to the community gallery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
