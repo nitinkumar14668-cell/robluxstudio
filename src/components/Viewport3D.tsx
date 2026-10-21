@@ -71,10 +71,18 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
       keysRef.current[e.code] = true;
+      if (e.key) keysRef.current[e.key.toLowerCase()] = true;
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current[e.code] = false;
+      if (e.key) keysRef.current[e.key.toLowerCase()] = false;
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -227,6 +235,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     let activeGizmoAxis: string | null = null;
     let gizmoDragPlane = new THREE.Plane();
     let gizmoDragOffset = new THREE.Vector3();
+    let isDraggingCamera = false;
 
     // Player physics state in play mode
     let playerPos = new THREE.Vector3(0, 3, 0);
@@ -250,7 +259,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
       if (isPlayModeRef.current) {
-        // In Play mode, right-click orbits avatar camera
+        // In Play mode, any mouse button (Left or Right) rotates avatar camera
+        isDraggingCamera = true;
+        return;
+      }
+
+      if (mouseButton === 2) {
+        isDraggingCamera = true;
         return;
       }
 
@@ -297,8 +312,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             soundEngine.playClick();
           }
         } else {
-          // Click on empty space
+          // Click on empty space -> drag to look / orbit camera
           onSelectInstance(null);
+          isDraggingCamera = true;
         }
       }
     };
@@ -366,16 +382,16 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
       // In Play Mode: Mouse Orbit Camera
       if (isPlayModeRef.current) {
-        if (mouseButton === 0 || mouseButton === 2) {
-          playerYaw -= deltaX * 0.006;
-          playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch + deltaY * 0.006));
+        if (isMouseDown || isDraggingCamera) {
+          playerYaw -= deltaX * 0.007;
+          playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch + deltaY * 0.007));
         }
         return;
       }
 
       // Studio Edit Mode Camera Navigation:
-      // Right Click: Orbit Look Around
-      if (mouseButton === 2) {
+      // Right Click OR Left Click drag on empty space: Orbit Look Around
+      if (mouseButton === 2 || isDraggingCamera) {
         cameraSpherical.theta -= deltaX * 0.007;
         cameraSpherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, cameraSpherical.phi - deltaY * 0.007));
         camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
@@ -402,6 +418,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     const onPointerUp = () => {
       isMouseDown = false;
       activeGizmoAxis = null;
+      isDraggingCamera = false;
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -486,20 +503,53 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         gizmoGroup.visible = false;
       }
 
-      // Freecam keyboard navigation in Studio Mode (WASD, Q, E)
-      if (!isPlayModeRef.current && (keysRef.current['KeyW'] || keysRef.current['KeyS'] || keysRef.current['KeyA'] || keysRef.current['KeyD'] || keysRef.current['KeyE'] || keysRef.current['KeyQ'])) {
-        const moveSpeed = (keysRef.current['ShiftLeft'] ? 60 : 25) * delta;
+      // Direction checks:
+      // U = Up / Forward, D = Down / Backward, L = Left side, R = Right side
+      // Also support W (Up), S (Down), A (Left), and Arrow Keys:
+      const isUp = Boolean(
+        keysRef.current['KeyU'] ||
+        keysRef.current['u'] ||
+        keysRef.current['KeyW'] ||
+        keysRef.current['w'] ||
+        keysRef.current['ArrowUp']
+      );
+
+      const isDown = Boolean(
+        keysRef.current['KeyD'] ||
+        keysRef.current['d'] ||
+        keysRef.current['KeyS'] ||
+        keysRef.current['s'] ||
+        keysRef.current['ArrowDown']
+      );
+
+      const isLeft = Boolean(
+        keysRef.current['KeyL'] ||
+        keysRef.current['l'] ||
+        keysRef.current['KeyA'] ||
+        keysRef.current['a'] ||
+        keysRef.current['ArrowLeft']
+      );
+
+      const isRight = Boolean(
+        keysRef.current['KeyR'] ||
+        keysRef.current['r'] ||
+        keysRef.current['ArrowRight']
+      );
+
+      // Freecam keyboard navigation in Studio Mode (U, D, L, R, WASD, Q, E)
+      if (!isPlayModeRef.current && (isUp || isDown || isLeft || isRight || keysRef.current['KeyE'] || keysRef.current['e'] || keysRef.current['KeyQ'] || keysRef.current['q'])) {
+        const moveSpeed = (keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] ? 60 : 25) * delta;
         const forward = new THREE.Vector3();
         camera.getWorldDirection(forward);
         const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
 
         const move = new THREE.Vector3();
-        if (keysRef.current['KeyW']) move.addScaledVector(forward, moveSpeed);
-        if (keysRef.current['KeyS']) move.addScaledVector(forward, -moveSpeed);
-        if (keysRef.current['KeyD']) move.addScaledVector(right, moveSpeed);
-        if (keysRef.current['KeyA']) move.addScaledVector(right, -moveSpeed);
-        if (keysRef.current['KeyE']) move.y += moveSpeed;
-        if (keysRef.current['KeyQ']) move.y -= moveSpeed;
+        if (isUp) move.addScaledVector(forward, moveSpeed);
+        if (isDown) move.addScaledVector(forward, -moveSpeed);
+        if (isLeft) move.addScaledVector(right, -moveSpeed);
+        if (isRight) move.addScaledVector(right, moveSpeed);
+        if (keysRef.current['KeyE'] || keysRef.current['e']) move.y += moveSpeed;
+        if (keysRef.current['KeyQ'] || keysRef.current['q']) move.y -= moveSpeed;
 
         camera.position.add(move);
         cameraTarget.add(move);
@@ -515,10 +565,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         // Calculate input movement relative to camera yaw
         let moveX = 0;
         let moveZ = 0;
-        if (keysRef.current['KeyW']) moveZ -= 1;
-        if (keysRef.current['KeyS']) moveZ += 1;
-        if (keysRef.current['KeyA']) moveX -= 1;
-        if (keysRef.current['KeyD']) moveX += 1;
+        if (isUp) moveZ -= 1;    // U = Up / Forward
+        if (isDown) moveZ += 1;  // D = Down / Backward
+        if (isLeft) moveX -= 1;  // L = Left side
+        if (isRight) moveX += 1; // R = Right side
 
         const isMoving = moveX !== 0 || moveZ !== 0;
 
@@ -991,14 +1041,23 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       </div>
 
       {/* Navigation hints badge at bottom-left */}
-      {!isPlayMode && (
-        <div className="absolute bottom-3 left-3 bg-[#1e1e24]/85 border border-neutral-700/60 rounded px-2.5 py-1.5 text-[11px] text-neutral-300 pointer-events-none flex items-center gap-3 shadow-lg">
-          <span><strong className="text-white">RMB Drag:</strong> Orbit</span>
-          <span><strong className="text-white">MMB / Alt+RMB:</strong> Pan</span>
-          <span><strong className="text-white">Scroll:</strong> Zoom</span>
-          <span><strong className="text-white">WASD:</strong> Freecam</span>
-        </div>
-      )}
+      <div className="absolute bottom-3 left-3 bg-[#1e1e24]/90 backdrop-blur-xs border border-neutral-700/80 rounded-md px-3 py-1.5 text-[11px] text-neutral-300 pointer-events-none flex items-center gap-3 shadow-xl font-mono">
+        <span className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">U</span> Up
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">D</span> Down
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">L</span> Left
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">R</span> Right
+        </span>
+        <div className="h-3 w-px bg-neutral-700" />
+        <span><strong className="text-white">🖱️ Mouse Drag:</strong> Camera View</span>
+        {isPlayMode && <span><strong className="text-amber-400">Space:</strong> Jump</span>}
+      </div>
     </div>
   );
 };
