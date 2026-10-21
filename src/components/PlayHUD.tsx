@@ -155,6 +155,97 @@ export const PlayHUD: React.FC<PlayHUDProps> = ({
         </div>
       )}
 
+      {/* Mobile / On-Screen Touch Controls (D-Pad and Jump) */}
+      <div className="absolute bottom-6 left-6 pointer-events-auto flex flex-col items-center gap-1 select-none z-30">
+        <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
+          }}
+          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }))}
+          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }))}
+          className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+        >
+          ▲
+        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            onTouchStart={(e) => {
+              e.preventDefault();
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true }));
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', bubbles: true }));
+            }}
+            onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true }))}
+            onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', bubbles: true }))}
+            className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+          >
+            ◀
+          </button>
+
+          <div className="w-6 h-6 rounded-full bg-white/20" />
+
+          <button
+            onTouchStart={(e) => {
+              e.preventDefault();
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', bubbles: true }));
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', bubbles: true }));
+            }}
+            onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', bubbles: true }))}
+            onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', bubbles: true }))}
+            className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+          >
+            ▶
+          </button>
+        </div>
+
+        <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', bubbles: true }));
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }));
+          }}
+          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', bubbles: true }))}
+          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }))}
+          className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+        >
+          ▼
+        </button>
+      </div>
+
+      {/* Mobile Jump Button on Bottom-Right */}
+      <div className="absolute bottom-8 right-8 pointer-events-auto select-none z-30">
+        <button
+          onTouchStart={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }));
+          }}
+          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))}
+          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }))}
+          className="w-16 h-16 rounded-full bg-[#00a2ff]/90 active:bg-sky-400 border-2 border-white/40 text-white flex flex-col items-center justify-center font-extrabold text-sm shadow-2xl backdrop-blur-xs"
+        >
+          <span>JUMP</span>
+          <span className="text-[10px] opacity-75">Space</span>
+        </button>
+      </div>
+
       {/* Roblox Classic Esc Pause Menu */}
       {isEscMenuOpen && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center pointer-events-auto">

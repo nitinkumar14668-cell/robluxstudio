@@ -2,9 +2,6 @@ import React, { useState } from 'react';
 import {
   Play,
   Square,
-  Pause,
-  Upload,
-  Layers,
   Box,
   Palette,
   Anchor,
@@ -13,18 +10,18 @@ import {
   Move,
   Maximize2,
   RotateCw,
-  FolderPlus,
   Undo2,
   Redo2,
   Save,
   Globe,
-  Settings,
-  Sun,
-  Code2,
-  Grid,
-  Bot,
+  Upload,
   UserCheck,
+  Code2,
   Zap,
+  FolderOpen,
+  Plus,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { StudioTab, TransformMode, PartShape, PartMaterial } from '../types/roblox';
 import { soundEngine } from '../engine/audio';
@@ -41,7 +38,6 @@ interface RibbonBarProps {
   onInsertScript: () => void;
   onPublishClick: () => void;
   onOpenGamesGallery: () => void;
-  onOpenVercelDeploy: () => void;
   gridSnap: number;
   onGridSnapChange: (snap: number) => void;
   anchored: boolean;
@@ -53,7 +49,7 @@ interface RibbonBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onSavePlace: () => void;
-  onQuickGenerate: (type: 'obby' | 'arena' | 'castle') => void;
+  onOpenPlace: () => void;
   isConsoleOpen: boolean;
   onToggleConsole: () => void;
   isToolboxOpen: boolean;
@@ -62,8 +58,6 @@ interface RibbonBarProps {
   onToggleExplorer: () => void;
   isPropertiesOpen: boolean;
   onToggleProperties: () => void;
-  isScriptEditorOpen: boolean;
-  onToggleScriptEditor: () => void;
 }
 
 export const RibbonBar: React.FC<RibbonBarProps> = ({
@@ -78,7 +72,6 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onInsertScript,
   onPublishClick,
   onOpenGamesGallery,
-  onOpenVercelDeploy,
   gridSnap,
   onGridSnapChange,
   anchored,
@@ -90,7 +83,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onUndo,
   onRedo,
   onSavePlace,
-  onQuickGenerate,
+  onOpenPlace,
   isConsoleOpen,
   onToggleConsole,
   isToolboxOpen,
@@ -99,24 +92,29 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onToggleExplorer,
   isPropertiesOpen,
   onToggleProperties,
-  isScriptEditorOpen,
-  onToggleScriptEditor,
 }) => {
   const [isPartMenuOpen, setIsPartMenuOpen] = useState(false);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
   const [isMaterialMenuOpen, setIsMaterialMenuOpen] = useState(false);
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
 
+  // Standard Roblox Studio BrickColors
   const colors = [
-    { name: 'Really Red', hex: '#ef4444' },
-    { name: 'Bright Blue', hex: '#0284c7' },
-    { name: 'Lime Green', hex: '#22c55e' },
-    { name: 'Bright Yellow', hex: '#eab308' },
-    { name: 'White', hex: '#f8fafc' },
-    { name: 'Black', hex: '#0f172a' },
-    { name: 'Medium Stone Grey', hex: '#64748b' },
-    { name: 'Neon Orange', hex: '#f97316' },
-    { name: 'Royal Purple', hex: '#9333ea' },
-    { name: 'Hot Pink', hex: '#ec4899' },
+    { name: 'Really Red', hex: '#ff0000' },
+    { name: 'Bright Blue', hex: '#0055ff' },
+    { name: 'Lime Green', hex: '#00ff00' },
+    { name: 'Bright Yellow', hex: '#ffff00' },
+    { name: 'Bright Orange', hex: '#ff6600' },
+    { name: 'Royal Purple', hex: '#aa00ff' },
+    { name: 'Hot Pink', hex: '#ff0088' },
+    { name: 'Medium Stone Grey', hex: '#6b7280' },
+    { name: 'Dark Stone Grey', hex: '#374151' },
+    { name: 'Black', hex: '#111827' },
+    { name: 'White', hex: '#ffffff' },
+    { name: 'Sand Green', hex: '#708a70' },
+    { name: 'Rust', hex: '#8a4025' },
+    { name: 'Cyan / Teal', hex: '#00d4ff' },
+    { name: 'Gold', hex: '#eab308' },
   ];
 
   const materials: PartMaterial[] = [
@@ -128,113 +126,141 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
     'Grass',
     'Brick',
     'Glass',
+    'Ice',
   ];
 
   return (
-    <div className="bg-[#222226] border-b border-neutral-700/80 text-neutral-200 select-none">
-      {/* Very Top Bar: Title & Quick Actions */}
-      <div className="h-9 px-3 flex items-center justify-between border-b border-neutral-800/80 text-xs bg-[#1a1a1e]">
-        <div className="flex items-center gap-3">
-          {/* Roblox Tilt Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-[#00a2ff] rounded flex items-center justify-center transform -rotate-12 shadow">
-              <div className="w-2 h-2 bg-white rounded-xs transform rotate-12" />
-            </div>
-            <span className="font-extrabold text-sm tracking-tight text-white">Roblox Studio</span>
-            <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-semibold text-[10px] border border-sky-500/30">
-              WEB EXE
-            </span>
+    <div className="bg-[#242429] border-b border-[#36363d] text-neutral-200 select-none flex flex-col shrink-0">
+      {/* 1. Desktop Window Top Bar */}
+      <div className="h-7 px-2 flex items-center justify-between border-b border-[#1c1c20] text-xs bg-[#1a1a1e]">
+        {/* Quick Access Toolbar */}
+        <div className="flex items-center gap-1.5">
+          {/* Roblox Tilt Logo / File Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
+              className="flex items-center gap-1 px-1.5 py-0.5 hover:bg-neutral-800 rounded transition-colors"
+            >
+              <div className="w-4 h-4 bg-[#00a2ff] rounded flex items-center justify-center transform -rotate-12 shadow">
+                <div className="w-1.5 h-1.5 bg-white rounded-2xs transform rotate-12" />
+              </div>
+              <span className="font-bold text-white text-[11px] ml-1">File</span>
+              <ChevronDown className="w-3 h-3 text-neutral-400" />
+            </button>
+
+            {/* File Dropdown */}
+            {isFileMenuOpen && (
+              <div
+                className="absolute top-7 left-0 w-52 bg-[#1e1e24] border border-[#3a3a44] rounded shadow-2xl py-1 z-50 text-xs flex flex-col font-sans"
+                onMouseLeave={() => setIsFileMenuOpen(false)}
+              >
+                <button
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    onOpenGamesGallery();
+                  }}
+                  className="px-3 py-1.5 hover:bg-[#00a2ff] hover:text-white flex items-center justify-between text-neutral-200"
+                >
+                  <span className="flex items-center gap-2">
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    Open from Roblox...
+                  </span>
+                  <span className="text-[10px] text-neutral-400">Ctrl+O</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    onSavePlace();
+                  }}
+                  className="px-3 py-1.5 hover:bg-[#00a2ff] hover:text-white flex items-center justify-between text-neutral-200"
+                >
+                  <span className="flex items-center gap-2">
+                    <Save className="w-3.5 h-3.5" />
+                    Save to File...
+                  </span>
+                  <span className="text-[10px] text-neutral-400">Ctrl+S</span>
+                </button>
+                <div className="h-px bg-neutral-700 my-1" />
+                <button
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    onPublishClick();
+                  }}
+                  className="px-3 py-1.5 hover:bg-[#00a2ff] hover:text-white flex items-center justify-between text-neutral-200"
+                >
+                  <span className="flex items-center gap-2">
+                    <Upload className="w-3.5 h-3.5" />
+                    Publish to Roblox...
+                  </span>
+                  <span className="text-[10px] text-neutral-400">Alt+P</span>
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="h-4 w-px bg-neutral-700 mx-1" />
+          <div className="h-3.5 w-px bg-neutral-700 mx-1" />
 
-          {/* Quick Access Icons */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => {
-                soundEngine.playClick();
-                onUndo();
-              }}
-              className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                soundEngine.playClick();
-                onRedo();
-              }}
-              className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
-              title="Redo (Ctrl+Y)"
-            >
-              <Redo2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                soundEngine.playClick();
-                onSavePlace();
-              }}
-              className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
-              title="Save Place to Local File"
-            >
-              <Save className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {/* Quick Access Tools */}
+          <button
+            onClick={onSavePlace}
+            className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
+            title="Save Place (Ctrl+S)"
+          >
+            <Save className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onUndo}
+            className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onRedo}
+            className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* Right quick buttons */}
+        {/* Center: Experience Name */}
+        <div className="text-[11px] font-semibold text-neutral-300 pointer-events-none truncate max-w-sm">
+          Roblox Studio - Place1
+        </div>
+
+        {/* Right Section: Publish & Account */}
         <div className="flex items-center gap-2">
-          {/* Vercel Deploy Helper Button */}
           <button
-            onClick={() => {
-              soundEngine.playClick();
-              onOpenVercelDeploy();
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-black hover:bg-neutral-900 text-white border border-neutral-700 font-semibold text-[11px] transition-colors shadow-xs"
-            title="Deploy to Vercel"
+            onClick={onOpenGamesGallery}
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[11px] font-medium"
           >
-            <svg className="w-3 h-3 fill-white" viewBox="0 0 76 65">
-              <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
-            </svg>
-            <span>Deploy to Vercel</span>
+            <Globe className="w-3 h-3 text-sky-400" />
+            <span>Discover</span>
           </button>
 
           <button
-            onClick={() => {
-              soundEngine.playClick();
-              onOpenGamesGallery();
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 font-medium text-[11px] transition-colors"
+            onClick={onPublishClick}
+            className="flex items-center gap-1.5 px-3 py-0.5 rounded bg-[#00a2ff] hover:bg-[#0092e6] text-white text-[11px] font-semibold shadow-xs"
           >
-            <Globe className="w-3.5 h-3.5 text-sky-400" />
-            <span>Discover Games</span>
+            <Upload className="w-3 h-3" />
+            <span>Publish</span>
           </button>
 
-          <button
-            onClick={() => {
-              soundEngine.playClick();
-              onPublishClick();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-[#00a2ff] hover:bg-[#0091e6] text-white font-semibold text-[11px] shadow-sm transition-all"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Publish to Roblox</span>
-          </button>
+          <div className="h-3.5 w-px bg-neutral-700 mx-0.5" />
 
-          <div className="h-4 w-px bg-neutral-700 mx-1" />
-
-          <div className="flex items-center gap-2 pl-1">
-            <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center font-bold text-[11px] text-neutral-900 border border-amber-300">
+          {/* User badge */}
+          <div className="flex items-center gap-1.5 pl-1">
+            <div className="w-5 h-5 rounded bg-amber-500 flex items-center justify-center font-bold text-[10px] text-neutral-900 border border-amber-300">
               R
             </div>
-            <span className="text-[11px] font-medium text-neutral-300 hidden sm:inline">nitinkumar14668</span>
+            <span className="text-[11px] font-medium text-neutral-300">nitinkumar14668</span>
           </div>
         </div>
       </div>
 
-      {/* Ribbon Tabs Header */}
-      <div className="flex items-center px-2 bg-[#222226] border-b border-neutral-800 text-[12px] font-medium">
+      {/* 2. Ribbon Tabs */}
+      <div className="flex items-center px-2 bg-[#26262b] border-b border-[#1c1c20] text-xs font-medium">
         {(['home', 'model', 'test', 'view', 'plugins'] as StudioTab[]).map((tab) => (
           <button
             key={tab}
@@ -242,10 +268,10 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               soundEngine.playClick();
               onTabChange(tab);
             }}
-            className={`px-4 py-1.5 capitalize transition-colors border-b-2 font-medium ${
+            className={`px-3.5 py-1 capitalize transition-colors font-semibold text-[11px] ${
               activeTab === tab
-                ? 'border-[#00a2ff] text-white bg-[#2b2b30]'
-                : 'border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+                ? 'bg-[#323238] text-white border-b-2 border-[#00a2ff]'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
             }`}
           >
             {tab}
@@ -253,68 +279,62 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
         ))}
       </div>
 
-      {/* Ribbon Content Bar */}
-      <div className="h-20 px-3 flex items-center gap-3 overflow-x-auto bg-[#2b2b30]">
-        {/* Play / Stop Simulation Section - Always Visible on Left */}
-        <div className="flex flex-col items-center justify-center px-3 border-r border-neutral-700/60">
+      {/* 3. Ribbon Toolstrip (Exact Studio Height & Density) */}
+      <div className="h-22 px-3 flex items-center gap-3 overflow-x-auto bg-[#323238] border-b border-[#1f1f23]">
+        {/* Test / Simulation Section (Play / Stop) */}
+        <div className="flex flex-col items-center justify-center pr-3 border-r border-[#40404a]">
           <button
             onClick={() => {
               soundEngine.playClick();
               onTogglePlayMode();
             }}
-            className={`flex flex-col items-center justify-center w-14 h-14 rounded-lg font-bold text-[11px] transition-all ${
+            className={`flex flex-col items-center justify-center w-13 h-14 rounded-md font-bold text-[11px] transition-all shadow-sm ${
               isPlayMode
-                ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                ? 'bg-[#e11d48] hover:bg-[#be123c] text-white'
+                : 'bg-[#15803d] hover:bg-[#166534] text-white'
             }`}
           >
             {isPlayMode ? (
               <>
-                <Square className="w-6 h-6 fill-current mb-0.5" />
+                <Square className="w-5 h-5 fill-current mb-0.5" />
                 <span>Stop</span>
               </>
             ) : (
               <>
-                <Play className="w-6 h-6 fill-current mb-0.5" />
+                <Play className="w-5 h-5 fill-current mb-0.5" />
                 <span>Play</span>
               </>
             )}
           </button>
-          <span className="text-[10px] text-neutral-400 mt-1">F5 Test</span>
+          <span className="text-[9px] text-neutral-400 mt-0.5 font-medium">F5</span>
         </div>
 
-        {/* HOME TAB CONTENT */}
+        {/* HOME TAB */}
         {activeTab === 'home' && (
-          <div className="flex items-center gap-4">
-            {/* Tools Group: Select, Move, Scale, Rotate */}
-            <div className="flex flex-col gap-1 pr-3 border-r border-neutral-700/60">
+          <div className="flex items-center gap-3">
+            {/* Transform Tools: Select, Move, Scale, Rotate */}
+            <div className="flex flex-col gap-1 pr-3 border-r border-[#40404a]">
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    soundEngine.playClick();
-                    onTransformModeChange('select');
-                  }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors ${
+                  onClick={() => onTransformModeChange('select')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                     transformMode === 'select'
                       ? 'bg-[#00a2ff] text-white'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                      : 'bg-[#29292e] hover:bg-[#383840] text-neutral-300'
                   }`}
-                  title="Select Tool"
+                  title="Select (1)"
                 >
                   <MousePointer className="w-3.5 h-3.5" />
                   <span>Select</span>
                 </button>
                 <button
-                  onClick={() => {
-                    soundEngine.playClick();
-                    onTransformModeChange('move');
-                  }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors ${
+                  onClick={() => onTransformModeChange('move')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                     transformMode === 'move'
                       ? 'bg-[#00a2ff] text-white'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                      : 'bg-[#29292e] hover:bg-[#383840] text-neutral-300'
                   }`}
-                  title="Move Tool"
+                  title="Move (2)"
                 >
                   <Move className="w-3.5 h-3.5" />
                   <span>Move</span>
@@ -322,31 +342,25 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    soundEngine.playClick();
-                    onTransformModeChange('scale');
-                  }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors ${
+                  onClick={() => onTransformModeChange('scale')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                     transformMode === 'scale'
                       ? 'bg-[#00a2ff] text-white'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                      : 'bg-[#29292e] hover:bg-[#383840] text-neutral-300'
                   }`}
-                  title="Scale Tool"
+                  title="Scale (3)"
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
                   <span>Scale</span>
                 </button>
                 <button
-                  onClick={() => {
-                    soundEngine.playClick();
-                    onTransformModeChange('rotate');
-                  }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors ${
+                  onClick={() => onTransformModeChange('rotate')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                     transformMode === 'rotate'
                       ? 'bg-[#00a2ff] text-white'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
+                      : 'bg-[#29292e] hover:bg-[#383840] text-neutral-300'
                   }`}
-                  title="Rotate Tool"
+                  title="Rotate (4)"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span>Rotate</span>
@@ -354,14 +368,14 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               </div>
             </div>
 
-            {/* Part Inserter Dropdown */}
-            <div className="relative pr-3 border-r border-neutral-700/60 flex flex-col items-center">
+            {/* Part Insertion Dropdown */}
+            <div className="relative pr-3 border-r border-[#40404a] flex flex-col items-center">
               <button
                 onClick={() => {
                   soundEngine.playClick();
                   setIsPartMenuOpen(!isPartMenuOpen);
                 }}
-                className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs w-16"
+                className="flex flex-col items-center justify-center p-1.5 rounded bg-[#29292e] hover:bg-[#383840] border border-[#40404a] text-xs w-16"
               >
                 <Box className="w-5 h-5 text-sky-400 mb-0.5" />
                 <span className="font-semibold text-[11px]">Part ▾</span>
@@ -369,7 +383,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
 
               {isPartMenuOpen && (
                 <div
-                  className="absolute top-16 left-0 w-44 bg-[#1e1e24] border border-neutral-700 rounded-lg shadow-2xl p-1 z-50 text-xs flex flex-col gap-0.5"
+                  className="absolute top-16 left-0 w-48 bg-[#1e1e24] border border-[#3a3a44] rounded shadow-2xl p-1 z-50 text-xs flex flex-col gap-0.5"
                   onMouseLeave={() => setIsPartMenuOpen(false)}
                 >
                   <button
@@ -377,40 +391,40 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                       onInsertPart('Block');
                       setIsPartMenuOpen(false);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 rounded text-left text-neutral-200"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2b2b33] rounded text-left text-neutral-200"
                   >
-                    <div className="w-3 h-3 bg-slate-400 rounded-xs" />
-                    <span>Block Part</span>
+                    <div className="w-3 h-3 bg-neutral-400 rounded-xs" />
+                    <span>Block</span>
                   </button>
                   <button
                     onClick={() => {
                       onInsertPart('Sphere');
                       setIsPartMenuOpen(false);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 rounded text-left text-neutral-200"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2b2b33] rounded text-left text-neutral-200"
                   >
                     <div className="w-3 h-3 bg-sky-400 rounded-full" />
-                    <span>Sphere Part</span>
+                    <span>Sphere</span>
                   </button>
                   <button
                     onClick={() => {
                       onInsertPart('Cylinder');
                       setIsPartMenuOpen(false);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 rounded text-left text-neutral-200"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2b2b33] rounded text-left text-neutral-200"
                   >
                     <div className="w-3 h-3 bg-amber-400 rounded-xs" />
-                    <span>Cylinder Part</span>
+                    <span>Cylinder</span>
                   </button>
                   <button
                     onClick={() => {
                       onInsertPart('Wedge');
                       setIsPartMenuOpen(false);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-800 rounded text-left text-neutral-200"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#2b2b33] rounded text-left text-neutral-200"
                   >
                     <div className="w-3 h-3 bg-emerald-400" />
-                    <span>Wedge Part</span>
+                    <span>Wedge</span>
                   </button>
                   <div className="h-px bg-neutral-700 my-1" />
                   <button
@@ -429,7 +443,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                     }}
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-red-600/30 rounded text-left text-red-400 font-semibold"
                   >
-                    <span>🔥 Lava Kill Brick</span>
+                    <span>🔥 Lava Hazard</span>
                   </button>
                   <button
                     onClick={() => {
@@ -447,14 +461,14 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                     }}
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-pink-600/30 rounded text-left text-pink-400 font-semibold"
                   >
-                    <span>⚡ Trampoline Jump Pad</span>
+                    <span>⚡ Trampoline Pad</span>
                   </button>
                 </div>
               )}
             </div>
 
             {/* Material & Color Pickers */}
-            <div className="flex items-center gap-2 pr-3 border-r border-neutral-700/60">
+            <div className="flex items-center gap-2 pr-3 border-r border-[#40404a]">
               {/* Color Button */}
               <div className="relative">
                 <button
@@ -463,14 +477,14 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                     setIsColorMenuOpen(!isColorMenuOpen);
                     setIsMaterialMenuOpen(false);
                   }}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs w-16"
+                  className="flex flex-col items-center justify-center p-1.5 rounded bg-[#29292e] hover:bg-[#383840] border border-[#40404a] text-xs w-16"
                 >
                   <Palette className="w-5 h-5 text-amber-400 mb-0.5" />
                   <span className="font-semibold text-[11px]">Color ▾</span>
                 </button>
                 {isColorMenuOpen && (
                   <div
-                    className="absolute top-16 left-0 bg-[#1e1e24] border border-neutral-700 rounded-lg shadow-2xl p-2 z-50 grid grid-cols-5 gap-1.5 w-44"
+                    className="absolute top-16 left-0 bg-[#1e1e24] border border-[#3a3a44] rounded shadow-2xl p-2 z-50 grid grid-cols-5 gap-1.5 w-48"
                     onMouseLeave={() => setIsColorMenuOpen(false)}
                   >
                     {colors.map((c) => (
@@ -497,14 +511,14 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                     setIsMaterialMenuOpen(!isMaterialMenuOpen);
                     setIsColorMenuOpen(false);
                   }}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs w-18"
+                  className="flex flex-col items-center justify-center p-1.5 rounded bg-[#29292e] hover:bg-[#383840] border border-[#40404a] text-xs w-18"
                 >
                   <Layers className="w-5 h-5 text-purple-400 mb-0.5" />
                   <span className="font-semibold text-[11px]">Material ▾</span>
                 </button>
                 {isMaterialMenuOpen && (
                   <div
-                    className="absolute top-16 left-0 bg-[#1e1e24] border border-neutral-700 rounded-lg shadow-2xl p-1 z-50 flex flex-col gap-0.5 w-36 text-xs"
+                    className="absolute top-16 left-0 bg-[#1e1e24] border border-[#3a3a44] rounded shadow-2xl p-1 z-50 flex flex-col gap-0.5 w-36 text-xs"
                     onMouseLeave={() => setIsMaterialMenuOpen(false)}
                   >
                     {materials.map((m) => (
@@ -514,7 +528,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                           onSelectMaterial(m);
                           setIsMaterialMenuOpen(false);
                         }}
-                        className="px-2.5 py-1 text-left rounded hover:bg-neutral-800 text-neutral-200"
+                        className="px-2.5 py-1 text-left rounded hover:bg-[#2b2b33] text-neutral-200"
                       >
                         {m}
                       </button>
@@ -524,85 +538,74 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
               </div>
             </div>
 
-            {/* Physics & Properties Toggles */}
-            <div className="flex flex-col gap-1 pr-3 border-r border-neutral-700/60">
+            {/* Mechanics Toggles: Anchor & CanCollide */}
+            <div className="flex flex-col gap-1 pr-3 border-r border-[#40404a]">
               <button
-                onClick={() => {
-                  soundEngine.playClick();
-                  onToggleAnchored();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-colors ${
+                onClick={onToggleAnchored}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
                   anchored
-                    ? 'bg-neutral-700 text-sky-400 font-bold border border-sky-500/50'
-                    : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                    ? 'bg-[#273244] text-[#38bdf8] border border-[#0284c7]'
+                    : 'bg-[#29292e] text-neutral-400 border border-[#3d3d46]'
                 }`}
-                title="Anchored: Locks part in 3D space"
+                title="Lock part in 3D coordinates"
               >
                 <Anchor className="w-3.5 h-3.5" />
                 <span>Anchor: {anchored ? 'ON' : 'OFF'}</span>
               </button>
 
               <button
-                onClick={() => {
-                  soundEngine.playClick();
-                  onToggleCanCollide();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-colors ${
+                onClick={onToggleCanCollide}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
                   canCollide
-                    ? 'bg-neutral-700 text-emerald-400 font-bold border border-emerald-500/50'
-                    : 'bg-neutral-800 text-neutral-400 border border-neutral-700'
+                    ? 'bg-[#1e342a] text-[#4ade80] border border-[#16a34a]'
+                    : 'bg-[#29292e] text-neutral-400 border border-[#3d3d46]'
                 }`}
-                title="CanCollide: Avatar collides with part"
+                title="Avatar physically collides with part"
               >
                 <Shield className="w-3.5 h-3.5" />
                 <span>Collide: {canCollide ? 'ON' : 'OFF'}</span>
               </button>
             </div>
 
-            {/* Quick NPC / Script Spawn */}
-            <div className="flex items-center gap-2">
+            {/* Quick Insert Rigs & Scripts */}
+            <div className="flex items-center gap-1.5">
               <button
-                onClick={() => {
-                  soundEngine.playClick();
-                  onInsertNPC();
-                }}
-                className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs w-16"
-                title="Insert Roblox NPC Dummy"
+                onClick={onInsertNPC}
+                className="flex flex-col items-center justify-center p-1.5 rounded bg-[#29292e] hover:bg-[#383840] border border-[#40404a] text-xs w-16"
+                title="Insert Classic R6 Character Rig"
               >
                 <UserCheck className="w-5 h-5 text-emerald-400 mb-0.5" />
-                <span className="text-[11px] font-semibold">NPC Rig</span>
+                <span className="text-[11px] font-medium">NPC Rig</span>
               </button>
 
               <button
-                onClick={() => {
-                  soundEngine.playClick();
-                  onInsertScript();
-                }}
-                className="flex flex-col items-center justify-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs w-16"
-                title="Insert Roblox Lua Script"
+                onClick={onInsertScript}
+                className="flex flex-col items-center justify-center p-1.5 rounded bg-[#29292e] hover:bg-[#383840] border border-[#40404a] text-xs w-16"
+                title="Insert Luau Script into Workspace"
               >
                 <Code2 className="w-5 h-5 text-yellow-400 mb-0.5" />
-                <span className="text-[11px] font-semibold">Script</span>
+                <span className="text-[11px] font-medium">Script</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* MODEL TAB CONTENT */}
+        {/* MODEL TAB */}
         {activeTab === 'model' && (
           <div className="flex items-center gap-4">
-            <div className="flex flex-col gap-1 pr-3 border-r border-neutral-700/60">
-              <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider">Snap to Grid</span>
+            <div className="flex flex-col gap-1 pr-3 border-r border-[#40404a]">
+              <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider">
+                Grid Snapping
+              </span>
               <div className="flex items-center gap-1">
                 {[0.2, 1, 2, 4].map((snap) => (
                   <button
                     key={snap}
-                    onClick={() => {
-                      soundEngine.playClick();
-                      onGridSnapChange(snap);
-                    }}
+                    onClick={() => onGridSnapChange(snap)}
                     className={`px-2 py-1 rounded text-xs font-semibold ${
-                      gridSnap === snap ? 'bg-sky-500 text-white' : 'bg-neutral-800 text-neutral-300'
+                      gridSnap === snap
+                        ? 'bg-[#00a2ff] text-white'
+                        : 'bg-[#29292e] text-neutral-300 hover:bg-[#383840]'
                     }`}
                   >
                     {snap} Stud
@@ -610,141 +613,77 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
                 ))}
               </div>
             </div>
-
-            <div className="flex items-center gap-2 pr-3 border-r border-neutral-700/60">
-              <button
-                onClick={() => onQuickGenerate('obby')}
-                className="flex flex-col items-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs"
-              >
-                <Zap className="w-5 h-5 text-amber-400 mb-0.5" />
-                <span>Add Obby Stage</span>
-              </button>
-              <button
-                onClick={() => onQuickGenerate('castle')}
-                className="flex flex-col items-center p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs"
-              >
-                <Box className="w-5 h-5 text-indigo-400 mb-0.5" />
-                <span>Tower Platform</span>
-              </button>
-            </div>
           </div>
         )}
 
-        {/* TEST TAB CONTENT */}
+        {/* TEST TAB */}
         {activeTab === 'test' && (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 pr-3 border-r border-neutral-700/60">
-              <button
-                onClick={() => {
-                  soundEngine.playClick();
-                  onTogglePlayMode();
-                }}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>{isPlayMode ? 'Stop Test' : 'Run Avatar Test (F5)'}</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-neutral-300">
-              <span>WASD to Walk, Space to Jump, Right-Click Drag to Orbit Camera</span>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW TAB CONTENT */}
-        {activeTab === 'view' && (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                soundEngine.playClick();
-                onToggleExplorer();
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border ${
+              onClick={onTogglePlayMode}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-xs"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>{isPlayMode ? 'Stop Simulation' : 'Play (F5)'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* VIEW TAB */}
+        {activeTab === 'view' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleExplorer}
+              className={`px-3 py-1.5 rounded text-xs font-medium border ${
                 isExplorerOpen
                   ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  : 'bg-[#29292e] text-neutral-400 border-neutral-700'
               }`}
             >
               Explorer
             </button>
             <button
-              onClick={() => {
-                soundEngine.playClick();
-                onToggleProperties();
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border ${
+              onClick={onToggleProperties}
+              className={`px-3 py-1.5 rounded text-xs font-medium border ${
                 isPropertiesOpen
                   ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  : 'bg-[#29292e] text-neutral-400 border-neutral-700'
               }`}
             >
               Properties
             </button>
             <button
-              onClick={() => {
-                soundEngine.playClick();
-                onToggleToolbox();
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border ${
+              onClick={onToggleToolbox}
+              className={`px-3 py-1.5 rounded text-xs font-medium border ${
                 isToolboxOpen
                   ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  : 'bg-[#29292e] text-neutral-400 border-neutral-700'
               }`}
             >
               Toolbox
             </button>
             <button
-              onClick={() => {
-                soundEngine.playClick();
-                onToggleConsole();
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border ${
+              onClick={onToggleConsole}
+              className={`px-3 py-1.5 rounded text-xs font-medium border ${
                 isConsoleOpen
                   ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  : 'bg-[#29292e] text-neutral-400 border-neutral-700'
               }`}
             >
-              Output Console
-            </button>
-            <button
-              onClick={() => {
-                soundEngine.playClick();
-                onToggleScriptEditor();
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-medium border ${
-                isScriptEditorOpen
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700'
-              }`}
-            >
-              Script Editor
+              Output
             </button>
           </div>
         )}
 
-        {/* PLUGINS TAB CONTENT */}
+        {/* PLUGINS TAB */}
         {activeTab === 'plugins' && (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                soundEngine.playClick();
-                onQuickGenerate('obby');
-              }}
-              className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg text-xs shadow hover:opacity-95"
-            >
-              <Bot className="w-4 h-4" />
-              <span>AI Obby Generator</span>
-            </button>
-            <button
-              onClick={() => {
-                soundEngine.playClick();
-                onInsertScript();
-              }}
-              className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 rounded-lg text-xs"
+              onClick={onInsertScript}
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#29292e] hover:bg-[#383840] text-neutral-200 border border-[#40404a] rounded text-xs"
             >
               <Code2 className="w-4 h-4 text-amber-400" />
-              <span>Lua Script Assistant</span>
+              <span>Luau Script Helper</span>
             </button>
           </div>
         )}
