@@ -117,51 +117,73 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     const container = containerRef.current;
     if (!container) return;
 
-    // Detect software WebGL
+    // Detect software WebGL / Smart TV capability
     const isSoftwareGl = (() => {
-      const gl = document.createElement('canvas').getContext('webgl2');
-      if (!gl) return true;
-      const ext = gl.getExtension('WEBGL_debug_renderer_info');
-      const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-      const gpu = String(gl.getParameter(param));
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
-      return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+      try {
+        const probeCanvas = document.createElement('canvas');
+        const gl = (probeCanvas.getContext('webgl2') ||
+          probeCanvas.getContext('webgl') ||
+          probeCanvas.getContext('experimental-webgl')) as
+          | WebGLRenderingContext
+          | WebGL2RenderingContext
+          | null;
+        if (!gl) return true;
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const param = ext ? ext.UNMASKED_RENDERER_WEBGL : (gl as unknown as { RENDERER?: number }).RENDERER;
+        const gpu = param ? String(gl.getParameter(param)) : '';
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+      } catch {
+        return true;
+      }
     })();
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
+    const width = Math.max(300, container.clientWidth || window.innerWidth || 800);
+    const height = Math.max(300, container.clientHeight || window.innerHeight || 600);
+
     // Camera
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      1000
-    );
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
     camera.position.set(30, 25, 30);
     camera.lookAt(0, 2, 0);
     cameraRef.current = camera;
 
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !isSoftwareGl,
-      powerPreference: 'high-performance',
-      preserveDrawingBuffer: true,
-    });
+    // Renderer with TV & low-power GPU fallback
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: !isSoftwareGl,
+        powerPreference: 'default',
+        preserveDrawingBuffer: true,
+      });
+    } catch {
+      // Fallback renderer without antialias or special buffers for Smart TVs
+      renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        precision: 'mediump',
+      });
+    }
+
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
-    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(width, height);
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // RoomEnvironment reflection
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmremGenerator.dispose();
+    // RoomEnvironment reflection with safe fallback
+    try {
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmremGenerator.dispose();
+    } catch {
+      // Fallback for TVs that don't support PMREM float textures
+    }
 
     // Studio Lights
     const ambientLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.7);
