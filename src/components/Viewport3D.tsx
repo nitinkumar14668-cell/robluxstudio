@@ -7,6 +7,44 @@ import { createRobloxAvatar, RobloxAvatarInstance } from '../engine/avatar';
 import { soundEngine } from '../engine/audio';
 import { physicsEngine } from '../engine/physics';
 
+// ========================================================
+// REUSABLE MATH OBJECTS (Zero GC in animation loop)
+// ========================================================
+const _tmpVecA = new THREE.Vector3();
+const _tmpVecB = new THREE.Vector3();
+const _tmpVecC = new THREE.Vector3();
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _move = new THREE.Vector3();
+const _camOffset = new THREE.Vector3();
+const _targetCamPos = new THREE.Vector3();
+const _targetLookAt = new THREE.Vector3();
+const _inputDir = new THREE.Vector3();
+const _instPos = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _camUp = new THREE.Vector3();
+const _moveVec = new THREE.Vector3();
+const _panVector = new THREE.Vector3();
+const _hitPoint = new THREE.Vector3();
+
+// Cubic ease in/out for silky-smooth cinematic camera movement
+function easeInOutCubic(x: number): number {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+interface CameraTransition {
+  active: boolean;
+  type: 'toTest' | 'toSelect' | 'preset' | 'focus';
+  startTime: number;
+  duration: number;
+  startPos: THREE.Vector3;
+  startLookAt: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  targetLookAt: THREE.Vector3;
+  arcHeight: number;
+}
+
 interface Viewport3DProps {
   instances: RobloxInstance[];
   selectedId: string | null;
@@ -78,6 +116,35 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   // Key states
   const keysRef = useRef<{ [key: string]: boolean }>({});
 
+  // Camera Interpolation & Cinematic Transitions
+  const transitionRef = useRef<CameraTransition>({
+    active: false,
+    type: 'toTest',
+    startTime: 0,
+    duration: 1000,
+    startPos: new THREE.Vector3(30, 25, 30),
+    startLookAt: new THREE.Vector3(0, 2, 0),
+    targetPos: new THREE.Vector3(0, 5, 14),
+    targetLookAt: new THREE.Vector3(0, 4, 0),
+    arcHeight: 2.5,
+  });
+
+  const studioCameraState = useRef({
+    position: new THREE.Vector3(30, 25, 30),
+    target: new THREE.Vector3(0, 2, 0),
+    spherical: new THREE.Spherical(45, Math.PI / 3, Math.PI / 4),
+  });
+
+  const currentLookAtRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 2, 0));
+
+  const triggerTransitionRef = useRef<(
+    type: 'preset' | 'focus' | 'toSelect' | 'toTest',
+    targetPos: THREE.Vector3,
+    targetLookAt: THREE.Vector3,
+    duration?: number,
+    arcHeight?: number
+  ) => void>(() => {});
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -88,6 +155,23 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       }
       keysRef.current[e.code] = true;
       if (e.key) keysRef.current[e.key.toLowerCase()] = true;
+
+      // 'F' key: Smooth cinematic focus on selected instance in Select mode
+      if ((e.code === 'KeyF' || e.key?.toLowerCase() === 'f') && !isPlayModeRef.current && selectedIdRef.current) {
+        const mesh = meshMapRef.current.get(selectedIdRef.current);
+        const cam = cameraRef.current;
+        if (mesh && cam) {
+          const targetLookAt = mesh.position.clone();
+          _tmpVecA.subVectors(cam.position, targetLookAt);
+          const currentDist = Math.max(8, _tmpVecA.length());
+          const targetDist = Math.max(12, Math.min(32, currentDist * 0.75));
+          _tmpVecA.normalize().multiplyScalar(targetDist);
+          const targetPos = targetLookAt.clone().add(_tmpVecA);
+          targetPos.y = Math.max(3.5, targetPos.y);
+
+          triggerTransitionRef.current('focus', targetPos, targetLookAt, 650, 1.2);
+        }
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current[e.code] = false;
@@ -101,23 +185,27 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     };
   }, []);
 
-  // Set camera preset if requested
+  // Set camera preset if requested with smooth cinematic transition
   useEffect(() => {
     if (!cameraPreset || !cameraRef.current) return;
-    const cam = cameraRef.current;
+    const targetPos = new THREE.Vector3(35, 30, 35);
+    const targetLookAt = new THREE.Vector3(0, 2, 0);
+
     if (cameraPreset === 'Top') {
-      cam.position.set(0, 60, 0);
-      cam.lookAt(0, 0, 0);
+      targetPos.set(0, 60, 0.1);
+      targetLookAt.set(0, 0, 0);
     } else if (cameraPreset === 'Front') {
-      cam.position.set(0, 10, 45);
-      cam.lookAt(0, 5, 0);
+      targetPos.set(0, 10, 45);
+      targetLookAt.set(0, 5, 0);
     } else if (cameraPreset === 'Right') {
-      cam.position.set(45, 10, 0);
-      cam.lookAt(0, 5, 0);
+      targetPos.set(45, 10, 0);
+      targetLookAt.set(0, 5, 0);
     } else if (cameraPreset === 'Isometric') {
-      cam.position.set(35, 30, 35);
-      cam.lookAt(0, 0, 0);
+      targetPos.set(35, 30, 35);
+      targetLookAt.set(0, 0, 0);
     }
+
+    triggerTransitionRef.current('preset', targetPos, targetLookAt, 750, 1.8);
     if (onClearCameraPreset) onClearCameraPreset();
   }, [cameraPreset, onClearCameraPreset]);
 
@@ -262,6 +350,28 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     let cameraSpherical = new THREE.Spherical(45, Math.PI / 3, Math.PI / 4);
     let cameraTarget = new THREE.Vector3(0, 2, 0);
 
+    // Initialize triggerTransitionRef callback for camera glides
+    triggerTransitionRef.current = (
+      type,
+      targetPos,
+      targetLookAt,
+      duration = 750,
+      arcHeight = 1.5
+    ) => {
+      if (!cameraRef.current) return;
+      transitionRef.current = {
+        active: true,
+        type,
+        startTime: performance.now(),
+        duration,
+        startPos: cameraRef.current.position.clone(),
+        startLookAt: currentLookAtRef.current.clone(),
+        targetPos: targetPos.clone(),
+        targetLookAt: targetLookAt.clone(),
+        arcHeight,
+      };
+    };
+
     // Gizmo dragging state
     let activeGizmoAxis: string | null = null;
     let gizmoDragPlane = new THREE.Plane();
@@ -285,6 +395,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       mouseY = e.clientY;
       mouseButton = e.button;
       isMouseDown = true;
+
+      // Cancel any ongoing transition gracefully when user interacts
+      if (transitionRef.current.active) {
+        transitionRef.current.active = false;
+        if (!isPlayModeRef.current) {
+          cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+        }
+      }
 
       mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -431,18 +549,16 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       // Middle Click or Alt+Right: Pan Camera
       else if (mouseButton === 1 || (mouseButton === 2 && e.altKey)) {
         const panSpeed = 0.03 * (cameraSpherical.radius / 30);
-        const camRight = new THREE.Vector3();
-        const camUp = new THREE.Vector3();
-        camera.getWorldDirection(camRight);
-        camRight.cross(camera.up).normalize();
-        camUp.copy(camera.up).normalize();
+        camera.getWorldDirection(_camRight);
+        _camRight.cross(camera.up).normalize();
+        _camUp.copy(camera.up).normalize();
 
-        const moveVec = new THREE.Vector3()
-          .addScaledVector(camRight, -deltaX * panSpeed)
-          .addScaledVector(camUp, deltaY * panSpeed);
+        _moveVec.set(0, 0, 0)
+          .addScaledVector(_camRight, -deltaX * panSpeed)
+          .addScaledVector(_camUp, deltaY * panSpeed);
 
-        cameraTarget.add(moveVec);
-        camera.position.add(moveVec);
+        cameraTarget.add(_moveVec);
+        camera.position.add(_moveVec);
       }
     };
 
@@ -468,6 +584,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     let prevMidpoint = { x: 0, y: 0 };
 
     const onTouchStart = (e: TouchEvent) => {
+      // Cancel active camera transition on touch interaction
+      if (transitionRef.current.active) {
+        transitionRef.current.active = false;
+        if (!isPlayModeRef.current) {
+          cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+        }
+      }
+
       const now = performance.now();
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
@@ -561,17 +685,16 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
           if (!isPlayModeRef.current) {
             const panSpeed = 0.0016 * Math.max(10, cameraSpherical.radius);
-            const camForward = new THREE.Vector3();
-            camera.getWorldDirection(camForward);
-            const camRight = new THREE.Vector3().crossVectors(camForward, camera.up).normalize();
-            const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
+            camera.getWorldDirection(_forward);
+            _camRight.crossVectors(_forward, camera.up).normalize();
+            _camUp.crossVectors(_camRight, _forward).normalize();
 
-            const panVector = new THREE.Vector3()
-              .addScaledVector(camRight, -deltaMidX * panSpeed)
-              .addScaledVector(camUp, deltaMidY * panSpeed);
+            _panVector.set(0, 0, 0)
+              .addScaledVector(_camRight, -deltaMidX * panSpeed)
+              .addScaledVector(_camUp, deltaMidY * panSpeed);
 
-            cameraTarget.add(panVector);
-            camera.position.add(panVector);
+            cameraTarget.add(_panVector);
+            camera.position.add(_panVector);
           } else {
             // In Play mode, two finger vertical pan adjusts camera height smoothly
             playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch - deltaMidY * 0.003));
@@ -703,7 +826,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     function tick() {
       const delta = Math.min(clock.getDelta(), 0.1);
 
-      // Handle Play Mode transitions
+      // Handle Play Mode transitions (Select Mode <-> Test Mode)
       if (isPlayModeRef.current && !prevPlayMode) {
         prevPlayMode = true;
         physicsEngine.isSimulationRunning = true;
@@ -713,6 +836,34 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           : new THREE.Vector3(0, 4, 0);
         playerPos.copy(startPos);
         physicsEngine.setupPlayerBody(startPos);
+
+        // CINEMATIC TRANSITION: Select Mode -> Test Mode
+        // Save current studio camera viewpoint and controls state
+        studioCameraState.current.position.copy(camera.position);
+        studioCameraState.current.target.copy(cameraTarget);
+        studioCameraState.current.spherical.copy(cameraSpherical);
+
+        // Compute initial target 3rd person follow camera position
+        _camOffset.set(
+          Math.sin(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance,
+          Math.sin(playerCameraPitch) * playerCameraDistance + 3.0,
+          Math.cos(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance
+        );
+        _targetCamPos.copy(playerPos).add(_camOffset);
+        _targetLookAt.set(playerPos.x, playerPos.y + 2.5, playerPos.z);
+
+        // Launch smooth swooping transition (1.1s duration with 3.2-unit parabolic arc)
+        transitionRef.current = {
+          active: true,
+          type: 'toTest',
+          startTime: performance.now(),
+          duration: 1100,
+          startPos: camera.position.clone(),
+          startLookAt: currentLookAtRef.current.clone(),
+          targetPos: _targetCamPos.clone(),
+          targetLookAt: _targetLookAt.clone(),
+          arcHeight: 3.2,
+        };
       } else if (!isPlayModeRef.current && prevPlayMode) {
         prevPlayMode = false;
         physicsEngine.isSimulationRunning = false;
@@ -731,6 +882,23 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             physicsEngine.syncInstance(inst, m);
           }
         });
+
+        // CINEMATIC TRANSITION: Test Mode -> Select Mode
+        // Smoothly glide back to the saved studio editor perspective
+        const returnPos = studioCameraState.current.position;
+        const returnTarget = studioCameraState.current.target;
+
+        transitionRef.current = {
+          active: true,
+          type: 'toSelect',
+          startTime: performance.now(),
+          duration: 950,
+          startPos: camera.position.clone(),
+          startLookAt: currentLookAtRef.current.clone(),
+          targetPos: returnPos.clone(),
+          targetLookAt: returnTarget.clone(),
+          arcHeight: 2.8,
+        };
       }
 
       // Studio Selection Box Update
@@ -791,21 +959,24 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
       // Freecam keyboard navigation in Studio Mode (U, D, L, R, WASD, Q, E)
       if (!isPlayModeRef.current && (isUp || isDown || isLeft || isRight || keysRef.current['KeyE'] || keysRef.current['e'] || keysRef.current['KeyQ'] || keysRef.current['q'])) {
+        if (transitionRef.current.active) {
+          transitionRef.current.active = false;
+          cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+        }
         const moveSpeed = (keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] ? 60 : 25) * delta;
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+        camera.getWorldDirection(_forward);
+        _right.crossVectors(_forward, camera.up).normalize();
 
-        const move = new THREE.Vector3();
-        if (isUp) move.addScaledVector(forward, moveSpeed);
-        if (isDown) move.addScaledVector(forward, -moveSpeed);
-        if (isLeft) move.addScaledVector(right, -moveSpeed);
-        if (isRight) move.addScaledVector(right, moveSpeed);
-        if (keysRef.current['KeyE'] || keysRef.current['e']) move.y += moveSpeed;
-        if (keysRef.current['KeyQ'] || keysRef.current['q']) move.y -= moveSpeed;
+        _move.set(0, 0, 0);
+        if (isUp) _move.addScaledVector(_forward, moveSpeed);
+        if (isDown) _move.addScaledVector(_forward, -moveSpeed);
+        if (isLeft) _move.addScaledVector(_right, -moveSpeed);
+        if (isRight) _move.addScaledVector(_right, moveSpeed);
+        if (keysRef.current['KeyE'] || keysRef.current['e']) _move.y += moveSpeed;
+        if (keysRef.current['KeyQ'] || keysRef.current['q']) _move.y -= moveSpeed;
 
-        camera.position.add(move);
-        cameraTarget.add(move);
+        camera.position.add(_move);
+        cameraTarget.add(_move);
       }
 
       // Step Cannon.js Physics Simulation
@@ -836,15 +1007,15 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
         if (isMoving) {
           const moveSpeed = speed * Math.min(1, inputMagnitude);
-          const inputDir = new THREE.Vector3(moveX / inputMagnitude, 0, moveZ / inputMagnitude);
-          inputDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), playerYaw);
+          _inputDir.set(moveX / inputMagnitude, 0, moveZ / inputMagnitude);
+          _inputDir.applyAxisAngle(_up, playerYaw);
 
           // Apply velocity directly to Cannon rigid body
-          pBody.velocity.x = inputDir.x * moveSpeed;
-          pBody.velocity.z = inputDir.z * moveSpeed;
+          pBody.velocity.x = _inputDir.x * moveSpeed;
+          pBody.velocity.z = _inputDir.z * moveSpeed;
 
           // Rotate character towards movement direction
-          const targetCharYaw = Math.atan2(inputDir.x, inputDir.z);
+          const targetCharYaw = Math.atan2(_inputDir.x, _inputDir.z);
           avatarRef.current.root.rotation.y = THREE.MathUtils.damp(
             avatarRef.current.root.rotation.y,
             targetCharYaw,
@@ -878,8 +1049,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
         // Check interactive Roblox triggers (Coins, Pads, Trampolines, Hazards)
         for (const inst of instancesRef.current) {
-          const instPos = new THREE.Vector3(inst.position.x, inst.position.y, inst.position.z);
-          const distToPlayer = playerPos.distanceTo(instPos);
+          _instPos.set(inst.position.x, inst.position.y, inst.position.z);
+          const distToPlayer = playerPos.distanceTo(_instPos);
 
           // If instance is coin and intersects
           if (inst.isCoin && distToPlayer < 2.5) {
@@ -899,7 +1070,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           }
 
           // If instance is JumpPad / Trampoline
-          if (inst.isJumpPad && distToPlayer < 3.8 && Math.abs(playerPos.y - instPos.y) < 2.5) {
+          if (inst.isJumpPad && distToPlayer < 3.8 && Math.abs(playerPos.y - _instPos.y) < 2.5) {
             soundEngine.playBounce();
             pBody.velocity.y = 65; // High physics bounce
           }
@@ -932,19 +1103,86 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         // Apply position to avatar mesh & animate limbs
         avatarRef.current.root.position.copy(playerPos);
         avatarRef.current.animate(isMoving, delta, speed);
-
-        // Update 3rd person follow camera
-        const camOffset = new THREE.Vector3(
-          Math.sin(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance,
-          Math.sin(playerCameraPitch) * playerCameraDistance + 3.0,
-          Math.cos(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance
-        );
-
-        camera.position.copy(playerPos).add(camOffset);
-        camera.lookAt(playerPos.x, playerPos.y + 3.0, playerPos.z);
       } else if (avatarRef.current) {
         avatarRef.current.root.visible = false;
         avatarRef.current.resetPose();
+      }
+
+      // ========================================================
+      // CINEMATIC CAMERA INTERPOLATION ENGINE
+      // ========================================================
+      const trans = transitionRef.current;
+      if (trans.active) {
+        const now = performance.now();
+        const elapsed = (now - trans.startTime) / trans.duration;
+        const progress = Math.min(Math.max(elapsed, 0), 1);
+        const ease = easeInOutCubic(progress);
+
+        if (trans.type === 'toTest') {
+          // Dynamically track avatar as simulation begins
+          _camOffset.set(
+            Math.sin(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance,
+            Math.sin(playerCameraPitch) * playerCameraDistance + 3.0,
+            Math.cos(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance
+          );
+          _targetCamPos.copy(playerPos).add(_camOffset);
+          _targetLookAt.set(playerPos.x, playerPos.y + 2.5, playerPos.z);
+
+          camera.position.lerpVectors(trans.startPos, _targetCamPos, ease);
+          // Parabolic swooping altitude arc
+          const arc = Math.sin(progress * Math.PI) * trans.arcHeight;
+          camera.position.y += arc;
+
+          currentLookAtRef.current.lerpVectors(trans.startLookAt, _targetLookAt, ease);
+          camera.lookAt(currentLookAtRef.current);
+
+          if (progress >= 1) {
+            trans.active = false;
+          }
+        } else if (trans.type === 'toSelect') {
+          camera.position.lerpVectors(trans.startPos, trans.targetPos, ease);
+          const arc = Math.sin(progress * Math.PI) * trans.arcHeight;
+          camera.position.y += arc;
+
+          currentLookAtRef.current.lerpVectors(trans.startLookAt, trans.targetLookAt, ease);
+          camera.lookAt(currentLookAtRef.current);
+
+          if (progress >= 1) {
+            trans.active = false;
+            camera.position.copy(trans.targetPos);
+            cameraTarget.copy(trans.targetLookAt);
+            cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+          }
+        } else {
+          // 'preset' or 'focus'
+          camera.position.lerpVectors(trans.startPos, trans.targetPos, ease);
+          const arc = Math.sin(progress * Math.PI) * trans.arcHeight;
+          camera.position.y += arc;
+
+          currentLookAtRef.current.lerpVectors(trans.startLookAt, trans.targetLookAt, ease);
+          camera.lookAt(currentLookAtRef.current);
+
+          if (progress >= 1) {
+            trans.active = false;
+            camera.position.copy(trans.targetPos);
+            cameraTarget.copy(trans.targetLookAt);
+            cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+          }
+        }
+      } else {
+        // Standard mode camera update (Non-transitioning)
+        if (isPlayModeRef.current) {
+          _camOffset.set(
+            Math.sin(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance,
+            Math.sin(playerCameraPitch) * playerCameraDistance + 3.0,
+            Math.cos(playerYaw) * Math.cos(playerCameraPitch) * playerCameraDistance
+          );
+          camera.position.copy(playerPos).add(_camOffset);
+          currentLookAtRef.current.set(playerPos.x, playerPos.y + 2.5, playerPos.z);
+          camera.lookAt(currentLookAtRef.current);
+        } else {
+          currentLookAtRef.current.copy(cameraTarget);
+        }
       }
 
       renderer.render(scene, camera);
@@ -1206,10 +1444,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           <div />
           <button
             onClick={() => {
-              if (cameraRef.current) {
-                cameraRef.current.position.set(0, 60, 0);
-                cameraRef.current.lookAt(0, 0, 0);
-              }
+              triggerTransitionRef.current(
+                'preset',
+                new THREE.Vector3(0, 60, 0.1),
+                new THREE.Vector3(0, 0, 0),
+                700,
+                2.0
+              );
             }}
             className="w-7 h-7 bg-neutral-800 hover:bg-sky-600 rounded text-center leading-7 font-bold text-white transition-colors"
             title="Top View"
@@ -1220,10 +1461,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
           <button
             onClick={() => {
-              if (cameraRef.current) {
-                cameraRef.current.position.set(-50, 8, 0);
-                cameraRef.current.lookAt(0, 5, 0);
-              }
+              triggerTransitionRef.current(
+                'preset',
+                new THREE.Vector3(-50, 8, 0),
+                new THREE.Vector3(0, 5, 0),
+                700,
+                1.5
+              );
             }}
             className="w-7 h-7 bg-neutral-800 hover:bg-sky-600 rounded text-center leading-7 font-bold text-white transition-colors"
             title="Left View"
@@ -1232,10 +1476,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           </button>
           <button
             onClick={() => {
-              if (cameraRef.current) {
-                cameraRef.current.position.set(0, 10, 50);
-                cameraRef.current.lookAt(0, 5, 0);
-              }
+              triggerTransitionRef.current(
+                'preset',
+                new THREE.Vector3(0, 10, 50),
+                new THREE.Vector3(0, 5, 0),
+                700,
+                1.5
+              );
             }}
             className="w-7 h-7 bg-neutral-700 hover:bg-sky-600 rounded text-center leading-7 font-bold text-white transition-colors"
             title="Front View"
@@ -1244,10 +1491,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           </button>
           <button
             onClick={() => {
-              if (cameraRef.current) {
-                cameraRef.current.position.set(50, 8, 0);
-                cameraRef.current.lookAt(0, 5, 0);
-              }
+              triggerTransitionRef.current(
+                'preset',
+                new THREE.Vector3(50, 8, 0),
+                new THREE.Vector3(0, 5, 0),
+                700,
+                1.5
+              );
             }}
             className="w-7 h-7 bg-neutral-800 hover:bg-sky-600 rounded text-center leading-7 font-bold text-white transition-colors"
             title="Right View"
@@ -1258,10 +1508,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           <div />
           <button
             onClick={() => {
-              if (cameraRef.current) {
-                cameraRef.current.position.set(35, 30, 35);
-                cameraRef.current.lookAt(0, 0, 0);
-              }
+              triggerTransitionRef.current(
+                'preset',
+                new THREE.Vector3(35, 30, 35),
+                new THREE.Vector3(0, 0, 0),
+                700,
+                1.5
+              );
             }}
             className="w-7 h-7 bg-neutral-800 hover:bg-sky-600 rounded text-center leading-7 font-bold text-white transition-colors"
             title="Isometric"
@@ -1273,22 +1526,19 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       </div>
 
       {/* Navigation hints badge at bottom-left */}
-      <div className="absolute bottom-3 left-3 bg-[#1e1e24]/90 backdrop-blur-xs border border-neutral-700/80 rounded-md px-3 py-1.5 text-[11px] text-neutral-300 pointer-events-none flex items-center gap-3 shadow-xl font-mono">
-        <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">U</span> Up
+      <div className="absolute bottom-3 left-3 bg-[#1e1e24]/90 backdrop-blur-xs border border-neutral-700/80 rounded-md px-3 py-1.5 text-[11px] text-neutral-300 pointer-events-none flex items-center gap-2.5 shadow-xl font-mono">
+        <span className="flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">U/D/L/R</span> Fly
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">D</span> Down
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">L</span> Left
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">R</span> Right
+        <span className="flex items-center gap-1">
+          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-sky-400 font-bold border border-neutral-700">F</span> Focus
         </span>
         <div className="h-3 w-px bg-neutral-700" />
-        <span><strong className="text-white">🖱️ Mouse Drag:</strong> Camera View</span>
+        <span><strong className="text-white">🖱️ Drag:</strong> Orbit</span>
         {isPlayMode && <span><strong className="text-amber-400">Space:</strong> Jump</span>}
+        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60">
+          Cinematic Interpolation
+        </span>
       </div>
     </div>
   );
