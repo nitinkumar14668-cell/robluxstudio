@@ -29,6 +29,7 @@ import {
 } from './types/roblox';
 import { MinecraftHotbar } from './components/MinecraftHotbar';
 import { StructureEditorModal } from './components/StructureEditorModal';
+import { EditModeControls } from './components/EditModeControls';
 import {
   createBaseplateInstances,
   createObbyInstances,
@@ -123,6 +124,9 @@ export default function App() {
   // Virtual Joystick & Multi-touch Input State
   const [joystickVector, setJoystickVector] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isJumpActive, setIsJumpActive] = useState<boolean>(false);
+  const [editFlyElevation, setEditFlyElevation] = useState<number>(0);
+  const [isFastFly, setIsFastFly] = useState<boolean>(false);
+  const [isEditAvatarMode, setIsEditAvatarMode] = useState<boolean>(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1039,7 +1043,23 @@ export default function App() {
                 onClearCameraPreset={() => setCameraPreset(null)}
                 joystickInput={joystickVector}
                 isJumpPressed={isJumpActive}
+                flyElevation={editFlyElevation}
+                isFastFly={isFastFly}
+                isEditAvatarMode={isEditAvatarMode}
               />
+
+              {/* Edit Mode Touch Controls: Virtual Joystick & Elevation Fly Controls */}
+              {!isPlayMode && (
+                <EditModeControls
+                  onJoystickMove={setJoystickVector}
+                  onFlyElevationChange={setEditFlyElevation}
+                  isEditAvatarMode={isEditAvatarMode}
+                  onToggleEditAvatarMode={() => setIsEditAvatarMode((prev) => !prev)}
+                  isFastFly={isFastFly}
+                  onToggleFastFly={() => setIsFastFly((prev) => !prev)}
+                  opacity={appSettings.dpadOpacity}
+                />
+              )}
 
               {/* Minecraft 9-Slot Hotbar & Place/Mine/Edit Bar */}
               {!isPlayMode && (

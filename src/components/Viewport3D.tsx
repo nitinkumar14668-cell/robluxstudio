@@ -72,6 +72,9 @@ interface Viewport3DProps {
   onClearCameraPreset?: () => void;
   joystickInput?: { x: number; y: number };
   isJumpPressed?: boolean;
+  flyElevation?: number;
+  isFastFly?: boolean;
+  isEditAvatarMode?: boolean;
 }
 
 export const Viewport3D: React.FC<Viewport3DProps> = ({
@@ -94,6 +97,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   onClearCameraPreset,
   joystickInput,
   isJumpPressed,
+  flyElevation = 0,
+  isFastFly = false,
+  isEditAvatarMode = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const instancesRef = useRef<RobloxInstance[]>(instances);
@@ -120,6 +126,12 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   joystickInputRef.current = joystickInput || { x: 0, y: 0 };
   const isJumpPressedRef = useRef<boolean>(false);
   isJumpPressedRef.current = Boolean(isJumpPressed);
+  const flyElevationRef = useRef<number>(0);
+  flyElevationRef.current = flyElevation || 0;
+  const isFastFlyRef = useRef<boolean>(false);
+  isFastFlyRef.current = Boolean(isFastFly);
+  const isEditAvatarModeRef = useRef<boolean>(false);
+  isEditAvatarModeRef.current = Boolean(isEditAvatarMode);
 
   // Track meshes map
   const meshMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
@@ -1281,26 +1293,86 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         keysRef.current['ArrowRight']
       );
 
-      // Freecam keyboard navigation in Studio Mode (U, D, L, R, WASD, Q, E)
-      if (!isPlayModeRef.current && (isUp || isDown || isLeft || isRight || keysRef.current['KeyE'] || keysRef.current['e'] || keysRef.current['KeyQ'] || keysRef.current['q'])) {
-        if (transitionRef.current.active) {
-          transitionRef.current.active = false;
-          cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+      // Navigation in Studio / Edit Mode:
+      // Supports: Touch Virtual Joystick, Fly Elevation (Up/Down buttons), and WASD/U,D,L,R keyboard
+      if (!isPlayModeRef.current) {
+        const joy = joystickInputRef.current || { x: 0, y: 0 };
+        const joyMag = Math.hypot(joy.x, joy.y);
+        const hasJoy = joyMag > 0.04;
+        const elevation = flyElevationRef.current || 0;
+        const hasKeyMove = isUp || isDown || isLeft || isRight || keysRef.current['KeyE'] || keysRef.current['e'] || keysRef.current['KeyQ'] || keysRef.current['q'];
+
+        if (hasJoy || hasKeyMove || elevation !== 0) {
+          if (transitionRef.current.active) {
+            transitionRef.current.active = false;
+            cameraSpherical.setFromVector3(_tmpVecA.subVectors(camera.position, cameraTarget));
+          }
+
+          const speedMultiplier = isFastFlyRef.current || keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] ? 2.5 : 1.0;
+          const moveSpeed = 24 * speedMultiplier * delta;
+
+          // Camera horizontal forward direction
+          camera.getWorldDirection(_forward);
+          _right.crossVectors(_forward, camera.up).normalize();
+
+          _move.set(0, 0, 0);
+
+          if (isEditAvatarModeRef.current) {
+            // Player Avatar Walk in Edit Mode:
+            const fwdFlat = _tmpVecA.set(_forward.x, 0, _forward.z).normalize();
+            const rightFlat = _tmpVecB.set(_right.x, 0, _right.z).normalize();
+
+            if (hasJoy) {
+              _move.addScaledVector(fwdFlat, -joy.y * moveSpeed * Math.min(1.4, joyMag));
+              _move.addScaledVector(rightFlat, joy.x * moveSpeed * Math.min(1.4, joyMag));
+            }
+            if (isUp) _move.addScaledVector(fwdFlat, moveSpeed);
+            if (isDown) _move.addScaledVector(fwdFlat, -moveSpeed);
+            if (isLeft) _move.addScaledVector(rightFlat, -moveSpeed);
+            if (isRight) _move.addScaledVector(rightFlat, moveSpeed);
+
+            if (_move.lengthSq() > 0.001) {
+              const targetCharYaw = Math.atan2(_move.x, _move.z);
+              if (avatarRef.current) {
+                avatarRef.current.root.rotation.y = THREE.MathUtils.damp(
+                  avatarRef.current.root.rotation.y,
+                  targetCharYaw,
+                  14,
+                  delta
+                );
+                avatarRef.current.animate(true, delta, 16);
+              }
+            } else if (avatarRef.current) {
+              avatarRef.current.animate(false, delta, 16);
+            }
+
+            camera.position.add(_move);
+            cameraTarget.add(_move);
+          } else {
+            // Free Flight in Edit Mode:
+            if (hasJoy) {
+              _move.addScaledVector(_forward, -joy.y * moveSpeed * Math.min(1.4, joyMag));
+              _move.addScaledVector(_right, joy.x * moveSpeed * Math.min(1.4, joyMag));
+            }
+            if (isUp) _move.addScaledVector(_forward, moveSpeed);
+            if (isDown) _move.addScaledVector(_forward, -moveSpeed);
+            if (isLeft) _move.addScaledVector(_right, -moveSpeed);
+            if (isRight) _move.addScaledVector(_right, moveSpeed);
+
+            // Fly Elevation (Up/Down)
+            if (keysRef.current['KeyE'] || keysRef.current['e'] || elevation > 0) {
+              _move.y += moveSpeed;
+            }
+            if (keysRef.current['KeyQ'] || keysRef.current['q'] || elevation < 0) {
+              _move.y -= moveSpeed;
+            }
+
+            camera.position.add(_move);
+            cameraTarget.add(_move);
+          }
+        } else if (!isPlayModeRef.current && avatarRef.current && isEditAvatarModeRef.current) {
+          avatarRef.current.animate(false, delta, 16);
         }
-        const moveSpeed = (keysRef.current['ShiftLeft'] || keysRef.current['ShiftRight'] ? 60 : 25) * delta;
-        camera.getWorldDirection(_forward);
-        _right.crossVectors(_forward, camera.up).normalize();
-
-        _move.set(0, 0, 0);
-        if (isUp) _move.addScaledVector(_forward, moveSpeed);
-        if (isDown) _move.addScaledVector(_forward, -moveSpeed);
-        if (isLeft) _move.addScaledVector(_right, -moveSpeed);
-        if (isRight) _move.addScaledVector(_right, moveSpeed);
-        if (keysRef.current['KeyE'] || keysRef.current['e']) _move.y += moveSpeed;
-        if (keysRef.current['KeyQ'] || keysRef.current['q']) _move.y -= moveSpeed;
-
-        camera.position.add(_move);
-        cameraTarget.add(_move);
       }
 
       // Step Cannon.js Physics Simulation
@@ -1428,8 +1500,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         avatarRef.current.root.position.copy(playerPos);
         avatarRef.current.animate(isMoving, delta, speed);
       } else if (avatarRef.current) {
-        avatarRef.current.root.visible = false;
-        avatarRef.current.resetPose();
+        if (isEditAvatarModeRef.current) {
+          avatarRef.current.root.visible = true;
+          avatarRef.current.root.position.set(cameraTarget.x, cameraTarget.y - 0.5, cameraTarget.z);
+        } else {
+          avatarRef.current.root.visible = false;
+          avatarRef.current.resetPose();
+        }
       }
 
       // ========================================================
