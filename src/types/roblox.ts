@@ -28,6 +28,23 @@ export interface Vector3D {
   z: number;
 }
 
+export type MinecraftBlockType =
+  | 'grass'
+  | 'dirt'
+  | 'stone'
+  | 'cobblestone'
+  | 'wood'
+  | 'brick'
+  | 'glass'
+  | 'diamond'
+  | 'gold'
+  | 'tnt'
+  | 'glowstone'
+  | 'obsidian'
+  | 'sand'
+  | 'leaves'
+  | 'lava';
+
 export interface RobloxInstance {
   id: string;
   name: string;
@@ -37,6 +54,7 @@ export interface RobloxInstance {
   
   // Transform & Geometry (for Parts / Spawns / Lights)
   shape?: PartShape;
+  blockType?: MinecraftBlockType;
   position: Vector3D;
   size: Vector3D;
   rotation: Vector3D; // degrees (Pitch, Yaw, Roll)
@@ -60,6 +78,7 @@ export interface RobloxInstance {
   isCoin?: boolean; // collectible coin
   coinValue?: number;
   isCheckpoint?: boolean;
+  isTNT?: boolean; // explosive Minecraft block
   
   // Light specific
   lightColor?: string;
@@ -75,7 +94,7 @@ export interface RobloxInstance {
   dialogue?: string;
 }
 
-export type TransformMode = 'select' | 'move' | 'scale' | 'rotate';
+export type TransformMode = 'select' | 'move' | 'scale' | 'rotate' | 'place' | 'mine';
 
 export type StudioTab = 'home' | 'model' | 'test' | 'view' | 'plugins';
 

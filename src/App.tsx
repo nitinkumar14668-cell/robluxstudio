@@ -25,7 +25,10 @@ import {
   PlayerStats,
   PartShape,
   PartMaterial,
+  MinecraftBlockType,
 } from './types/roblox';
+import { MinecraftHotbar } from './components/MinecraftHotbar';
+import { StructureEditorModal } from './components/StructureEditorModal';
 import {
   createBaseplateInstances,
   createObbyInstances,
@@ -75,6 +78,8 @@ export default function App() {
     return createBaseplateInstances();
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeBlockType, setActiveBlockType] = useState<MinecraftBlockType>('wood');
+  const [isStructureEditorOpen, setIsStructureEditorOpen] = useState<boolean>(false);
 
   // History stack for Undo / Redo
   const [history, setHistory] = useState<RobloxInstance[][]>([]);
@@ -517,21 +522,25 @@ export default function App() {
 
   // Duplicate
   const handleDuplicateInstance = useCallback(
-    (id: string) => {
+    (id: string, offset?: { x: number; y: number; z: number }) => {
       const inst = instances.find((i) => i.id === id);
       if (!inst) return;
       soundEngine.playClick();
       setHistory((h) => [...h.slice(-20), instances]);
       setFuture([]);
 
+      const dx = offset ? offset.x : 2;
+      const dy = offset ? offset.y : 0;
+      const dz = offset ? offset.z : 2;
+
       const copy: RobloxInstance = {
         ...JSON.parse(JSON.stringify(inst)),
-        id: `part-${Date.now()}`,
+        id: `part-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         name: `${inst.name}_Copy`,
         position: {
-          x: inst.position.x + 2,
-          y: inst.position.y,
-          z: inst.position.z + 2,
+          x: inst.position.x + dx,
+          y: inst.position.y + dy,
+          z: inst.position.z + dz,
         },
       };
 
@@ -540,6 +549,55 @@ export default function App() {
       addLog({ type: 'print', text: `Duplicated ${inst.name} -> ${copy.name}` });
     },
     [instances, addLog]
+  );
+
+  // Minecraft Block Insert
+  const handleInsertBlock = useCallback(
+    (pos: { x: number; y: number; z: number }, blockType: MinecraftBlockType) => {
+      soundEngine.playBlockPlace(blockType);
+      setHistory((h) => [...h.slice(-20), instances]);
+      setFuture([]);
+
+      const id = `block-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const snap = gridSnap || 2;
+      const isTNT = blockType === 'tnt';
+      const isLava = blockType === 'lava';
+
+      let mat: PartMaterial = 'Plastic';
+      if (blockType === 'wood') mat = 'Wood';
+      else if (blockType === 'brick') mat = 'Brick';
+      else if (blockType === 'glass') mat = 'Glass';
+      else if (blockType === 'glowstone' || blockType === 'lava') mat = 'Neon';
+
+      const newBlock: RobloxInstance = {
+        id,
+        name: `${blockType.charAt(0).toUpperCase() + blockType.slice(1)}Block`,
+        className: 'Part',
+        parentId: 'workspace',
+        shape: 'Block',
+        position: pos,
+        size: { x: snap, y: snap, z: snap },
+        rotation: { x: 0, y: 0, z: 0 },
+        color: '#ffffff',
+        material: mat,
+        blockType,
+        transparency: blockType === 'glass' ? 0.4 : 0,
+        reflectance: 0.1,
+        anchored: true,
+        canCollide: true,
+        castShadow: true,
+        isTNT,
+        isLava,
+      };
+
+      setInstances((prev) => [...prev, newBlock]);
+      setSelectedId(id);
+      addLog({
+        type: 'print',
+        text: `Placed Minecraft ${blockType} block at (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`,
+      });
+    },
+    [gridSnap, instances, addLog]
   );
 
   // Undo / Redo
@@ -723,6 +781,41 @@ export default function App() {
         e.preventDefault();
         handleSavePlace();
       }
+
+      // Minecraft hotbar slot selection (Keys 1 - 9)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const num = parseInt(e.key, 10);
+        if (!isNaN(num) && num >= 1 && num <= 9) {
+          const slots: MinecraftBlockType[] = [
+            'grass', 'dirt', 'cobblestone', 'wood', 'brick', 'glass', 'diamond', 'gold', 'tnt'
+          ];
+          if (slots[num - 1]) {
+            setActiveBlockType(slots[num - 1]);
+            soundEngine.playClick();
+            if (transformMode !== 'place' && transformMode !== 'mine') {
+              setTransformMode('place');
+            }
+          }
+        }
+      }
+
+      // B: Place block mode toggle
+      if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey) {
+        setTransformMode((prev) => (prev === 'place' ? 'select' : 'place'));
+        soundEngine.playClick();
+      }
+
+      // X: Mine / drag break mode toggle
+      if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey) {
+        setTransformMode((prev) => (prev === 'mine' ? 'select' : 'mine'));
+        soundEngine.playClick();
+      }
+
+      // E: Open Structure Editor when block is selected
+      if ((e.key === 'e' || e.key === 'E') && !isPlayMode && selectedId && !e.ctrlKey && !e.metaKey) {
+        setIsStructureEditorOpen(true);
+        soundEngine.playClick();
+      }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -735,6 +828,8 @@ export default function App() {
     handleDuplicateInstance,
     handleSavePlace,
     selectedId,
+    transformMode,
+    isPlayMode,
   ]);
 
   const selectedInstance = instances.find((i) => i.id === selectedId) || null;
@@ -929,6 +1024,10 @@ export default function App() {
                 selectedId={selectedId}
                 onSelectInstance={setSelectedId}
                 onUpdateInstance={updateInstance}
+                onDeleteInstance={handleDeleteInstance}
+                onInsertBlock={handleInsertBlock}
+                activeBlockType={activeBlockType}
+                onOpenStructureEditor={() => setIsStructureEditorOpen(true)}
                 transformMode={transformMode}
                 isPlayMode={isPlayMode}
                 playerStats={playerStats}
@@ -941,6 +1040,19 @@ export default function App() {
                 joystickInput={joystickVector}
                 isJumpPressed={isJumpActive}
               />
+
+              {/* Minecraft 9-Slot Hotbar & Place/Mine/Edit Bar */}
+              {!isPlayMode && (
+                <MinecraftHotbar
+                  activeBlock={activeBlockType}
+                  onSelectBlock={setActiveBlockType}
+                  transformMode={transformMode}
+                  onSetTransformMode={setTransformMode}
+                  isPlayMode={isPlayMode}
+                  selectedBlockId={selectedId}
+                  onOpenStructureEditor={() => setIsStructureEditorOpen(true)}
+                />
+              )}
 
               {/* Landscape Orientation Recommendation Banner (Mobile Portrait) */}
               {isMobileLayout && !isLandscape && (
@@ -1204,6 +1316,26 @@ export default function App() {
           }}
           onImportGameFile={handleImportGameFile}
           onClose={() => setIsGamesGalleryOpen(false)}
+        />
+      )}
+
+      {/* 6. MINECRAFT STRUCTURE FULL CUSTOMIZER MODAL */}
+      {isStructureEditorOpen && selectedInstance && (
+        <StructureEditorModal
+          instance={selectedInstance}
+          isOpen={isStructureEditorOpen}
+          onClose={() => setIsStructureEditorOpen(false)}
+          onUpdateInstance={updateInstance}
+          onDeleteInstance={handleDeleteInstance}
+          onDuplicateInstance={handleDuplicateInstance}
+          onTriggerExplosion={(pos) => {
+            soundEngine.playExplosion();
+            physicsEngine.applyExplosion(
+              new THREE.Vector3(pos.x, pos.y, pos.z),
+              450,
+              25
+            );
+          }}
         />
       )}
     </div>

@@ -287,3 +287,495 @@ export function createWoodTexture(): THREE.CanvasTexture {
   textureCache.set('wood', texture);
   return texture;
 }
+
+// ========================================================
+// AUTHENTIC MINECRAFT PROCEDURAL BLOCK TEXTURES
+// ========================================================
+
+/**
+ * Creates 16x16 pixelated Minecraft Grass top texture
+ */
+export function createMinecraftGrassTopTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_grass_top')) return textureCache.get('mc_grass_top')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const grassGreens = ['#55c23e', '#4bb335', '#5dc946', '#41a02e', '#65d54e', '#399427'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = grassGreens[Math.floor(Math.random() * grassGreens.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_grass_top', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Grass side texture (dirt with green dripping blades)
+ */
+export function createMinecraftGrassSideTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_grass_side')) return textureCache.get('mc_grass_side')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  // Dirt base
+  const dirtBrowns = ['#866043', '#724f35', '#60412a', '#79553a', '#543823'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = dirtBrowns[Math.floor(Math.random() * dirtBrowns.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // Grass fringe on top 3-5 rows
+  const grassGreens = ['#55c23e', '#4bb335', '#41a02e', '#65d54e'];
+  for (let x = 0; x < 16; x++) {
+    const depth = 3 + (x % 3 === 0 ? 2 : x % 2 === 0 ? 1 : 0);
+    for (let y = 0; y < depth; y++) {
+      ctx.fillStyle = grassGreens[Math.floor(Math.random() * grassGreens.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_grass_side', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Dirt block texture
+ */
+export function createMinecraftDirtTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_dirt')) return textureCache.get('mc_dirt')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const dirtBrowns = ['#866043', '#724f35', '#60412a', '#79553a', '#543823', '#91694a'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = dirtBrowns[Math.floor(Math.random() * dirtBrowns.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_dirt', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Cobblestone texture
+ */
+export function createMinecraftCobblestoneTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_cobble')) return textureCache.get('mc_cobble')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const stones = ['#848484', '#6b6b6b', '#575757', '#9c9c9c', '#464646', '#3b3b3b'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = stones[Math.floor(Math.random() * stones.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // Add cobblestone seam outlines
+  ctx.fillStyle = '#2e2e2e';
+  ctx.fillRect(0, 4, 16, 1);
+  ctx.fillRect(0, 10, 16, 1);
+  ctx.fillRect(5, 0, 1, 4);
+  ctx.fillRect(11, 4, 1, 6);
+  ctx.fillRect(4, 10, 1, 6);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_cobble', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Oak Planks texture
+ */
+export function createMinecraftPlanksTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_planks')) return textureCache.get('mc_planks')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const woods = ['#b88755', '#a57644', '#c99663', '#8f6436', '#ba8a58'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = woods[Math.floor(Math.random() * woods.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // 4 horizontal plank divider lines
+  ctx.fillStyle = '#61411e';
+  for (let y = 0; y < 16; y += 4) {
+    ctx.fillRect(0, y, 16, 1);
+  }
+  // Alternating vertical joints
+  ctx.fillRect(7, 0, 1, 4);
+  ctx.fillRect(12, 4, 1, 4);
+  ctx.fillRect(4, 8, 1, 4);
+  ctx.fillRect(10, 12, 1, 4);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_planks', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Diamond Ore / Block texture
+ */
+export function createMinecraftDiamondTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_diamond')) return textureCache.get('mc_diamond')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  // Cyan gemstone crystalline field
+  const cyans = ['#5bfdfd', '#40e2e2', '#2fc4c4', '#7efefe', '#1fa6a6'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = cyans[Math.floor(Math.random() * cyans.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // Inner beveled diamond pattern
+  ctx.strokeStyle = '#e0ffff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(2.5, 2.5, 11, 11);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_diamond', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Gold Block texture
+ */
+export function createMinecraftGoldTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_gold')) return textureCache.get('mc_gold')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const golds = ['#fed83d', '#e9b115', '#fce268', '#c4900a', '#fff199'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = golds[Math.floor(Math.random() * golds.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  // Gold border
+  ctx.strokeStyle = '#946c05';
+  ctx.strokeRect(1, 1, 14, 14);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_gold', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft TNT block texture
+ */
+export function createMinecraftTntTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_tnt')) return textureCache.get('mc_tnt')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d')!;
+
+  // Red dynamite sticks top and bottom
+  ctx.fillStyle = '#b91c1c';
+  ctx.fillRect(0, 0, 32, 32);
+
+  // White middle band
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 10, 32, 12);
+
+  // Black TNT text
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('TNT', 16, 16);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_tnt', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Glass texture
+ */
+export function createMinecraftGlassTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_glass')) return textureCache.get('mc_glass')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  // Clear background
+  ctx.clearRect(0, 0, 16, 16);
+
+  // Outer border
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeRect(0.5, 0.5, 15, 15);
+
+  // Highlight streaks
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillRect(3, 3, 2, 2);
+  ctx.fillRect(5, 5, 2, 2);
+  ctx.fillRect(10, 10, 2, 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_glass', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Glowstone texture
+ */
+export function createMinecraftGlowstoneTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_glowstone')) return textureCache.get('mc_glowstone')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const glows = ['#ffea78', '#f5b83d', '#fff3a3', '#d98b18', '#ffe44d'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = glows[Math.floor(Math.random() * glows.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_glowstone', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Obsidian texture
+ */
+export function createMinecraftObsidianTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_obsidian')) return textureCache.get('mc_obsidian')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const obsidians = ['#15101f', '#201830', '#2d1e45', '#100c19', '#392458'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = obsidians[Math.floor(Math.random() * obsidians.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_obsidian', texture);
+  return texture;
+}
+
+/**
+ * Creates 16x16 Minecraft Oak Leaves texture
+ */
+export function createMinecraftLeavesTexture(): THREE.CanvasTexture {
+  if (textureCache.has('mc_leaves')) return textureCache.get('mc_leaves')!;
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d')!;
+
+  const leaves = ['#2e7d32', '#388e3c', '#1b5e20', '#4caf50', '#256029'];
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      ctx.fillStyle = leaves[Math.floor(Math.random() * leaves.length)];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textureCache.set('mc_leaves', texture);
+  return texture;
+}
+
+/**
+ * Get or create Three.js Material for a specific Minecraft Block Type
+ */
+export function getMinecraftBlockMaterial(
+  blockType?: string,
+  tintColor?: string
+): THREE.Material | THREE.Material[] {
+  const color = tintColor ? new THREE.Color(tintColor) : new THREE.Color('#ffffff');
+
+  if (blockType === 'grass') {
+    const topMat = new THREE.MeshStandardMaterial({
+      map: createMinecraftGrassTopTexture(),
+      roughness: 0.8,
+      metalness: 0.05,
+    });
+    const sideMat = new THREE.MeshStandardMaterial({
+      map: createMinecraftGrassSideTexture(),
+      roughness: 0.9,
+      metalness: 0.05,
+    });
+    const bottomMat = new THREE.MeshStandardMaterial({
+      map: createMinecraftDirtTexture(),
+      roughness: 0.95,
+      metalness: 0.05,
+    });
+    // Box geometry materials order: [right, left, top, bottom, front, back]
+    return [sideMat, sideMat, topMat, bottomMat, sideMat, sideMat];
+  }
+
+  if (blockType === 'dirt') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftDirtTexture(),
+      roughness: 0.95,
+      metalness: 0.05,
+    });
+  }
+
+  if (blockType === 'cobblestone' || blockType === 'stone') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftCobblestoneTexture(),
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+  }
+
+  if (blockType === 'wood') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftPlanksTexture(),
+      roughness: 0.75,
+      metalness: 0.05,
+    });
+  }
+
+  if (blockType === 'diamond') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftDiamondTexture(),
+      roughness: 0.2,
+      metalness: 0.3,
+      emissive: new THREE.Color('#06b6d4'),
+      emissiveIntensity: 0.25,
+    });
+  }
+
+  if (blockType === 'gold') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftGoldTexture(),
+      roughness: 0.3,
+      metalness: 0.85,
+    });
+  }
+
+  if (blockType === 'tnt') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftTntTexture(),
+      roughness: 0.6,
+      metalness: 0.05,
+    });
+  }
+
+  if (blockType === 'glass') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftGlassTexture(),
+      roughness: 0.1,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.5,
+    });
+  }
+
+  if (blockType === 'glowstone') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftGlowstoneTexture(),
+      roughness: 0.3,
+      metalness: 0.1,
+      emissive: new THREE.Color('#facc15'),
+      emissiveIntensity: 0.8,
+    });
+  }
+
+  if (blockType === 'obsidian') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftObsidianTexture(),
+      roughness: 0.4,
+      metalness: 0.2,
+    });
+  }
+
+  if (blockType === 'leaves') {
+    return new THREE.MeshStandardMaterial({
+      map: createMinecraftLeavesTexture(),
+      roughness: 0.8,
+      metalness: 0.05,
+    });
+  }
+
+  // Default fallback block
+  return new THREE.MeshStandardMaterial({
+    color: color,
+    roughness: 0.5,
+    metalness: 0.1,
+  });
+}
+

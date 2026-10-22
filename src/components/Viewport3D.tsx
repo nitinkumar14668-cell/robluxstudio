@@ -1,8 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { RobloxInstance, TransformMode, PlayerStats } from '../types/roblox';
-import { createStudsTexture, createSpawnTexture, createBrickTexture, createWoodTexture } from '../engine/materials';
+import { RobloxInstance, TransformMode, PlayerStats, MinecraftBlockType } from '../types/roblox';
+import {
+  createStudsTexture,
+  createSpawnTexture,
+  createBrickTexture,
+  createWoodTexture,
+  getMinecraftBlockMaterial,
+} from '../engine/materials';
 import { createRobloxAvatar, RobloxAvatarInstance } from '../engine/avatar';
 import { soundEngine } from '../engine/audio';
 import { physicsEngine } from '../engine/physics';
@@ -27,6 +33,7 @@ const _camUp = new THREE.Vector3();
 const _moveVec = new THREE.Vector3();
 const _panVector = new THREE.Vector3();
 const _hitPoint = new THREE.Vector3();
+const _placementTargetPos = new THREE.Vector3();
 
 // Cubic ease in/out for silky-smooth cinematic camera movement
 function easeInOutCubic(x: number): number {
@@ -50,6 +57,10 @@ interface Viewport3DProps {
   selectedId: string | null;
   onSelectInstance: (id: string | null) => void;
   onUpdateInstance: (id: string, updates: Partial<RobloxInstance>) => void;
+  onDeleteInstance?: (id: string) => void;
+  onInsertBlock?: (pos: { x: number; y: number; z: number }, blockType: MinecraftBlockType) => void;
+  activeBlockType?: MinecraftBlockType;
+  onOpenStructureEditor?: () => void;
   transformMode: TransformMode;
   isPlayMode: boolean;
   playerStats: PlayerStats;
@@ -68,6 +79,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   selectedId,
   onSelectInstance,
   onUpdateInstance,
+  onDeleteInstance,
+  onInsertBlock,
+  activeBlockType = 'wood',
+  onOpenStructureEditor,
   transformMode,
   isPlayMode,
   playerStats,
@@ -91,6 +106,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   transformModeRef.current = transformMode;
   const gridSnapRef = useRef<number>(gridSnap);
   gridSnapRef.current = gridSnap;
+  const activeBlockTypeRef = useRef<MinecraftBlockType>(activeBlockType);
+  activeBlockTypeRef.current = activeBlockType;
+  const onDeleteInstanceRef = useRef(onDeleteInstance);
+  onDeleteInstanceRef.current = onDeleteInstance;
+  const onInsertBlockRef = useRef(onInsertBlock);
+  onInsertBlockRef.current = onInsertBlock;
+  const onOpenStructureEditorRef = useRef(onOpenStructureEditor);
+  onOpenStructureEditorRef.current = onOpenStructureEditor;
   const playerStatsRef = useRef<PlayerStats>(playerStats);
   playerStatsRef.current = playerStats;
   const joystickInputRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -342,6 +365,75 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     scene.add(avatar.root);
     avatarRef.current = avatar;
 
+    // ========================================================
+    // MINECRAFT PLACEMENT GHOST & VOXEL BREAK PARTICLES
+    // ========================================================
+    const ghostGeom = new THREE.BoxGeometry(1, 1, 1);
+    const ghostMat = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.85,
+    });
+    const placementGhost = new THREE.Mesh(ghostGeom, ghostMat);
+    const innerGhost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.96, 0.96, 0.96),
+      new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.35 })
+    );
+    placementGhost.add(innerGhost);
+    placementGhost.visible = false;
+    scene.add(placementGhost);
+
+    // Particle pool for block breaking (Zero GC in animation loop)
+    interface VoxelParticle {
+      mesh: THREE.Mesh;
+      vel: THREE.Vector3;
+      life: number;
+      maxLife: number;
+    }
+    const particlePool: VoxelParticle[] = [];
+    const particleGroup = new THREE.Group();
+    scene.add(particleGroup);
+    const miniCubeGeom = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+
+    for (let p = 0; p < 30; p++) {
+      const pMesh = new THREE.Mesh(
+        miniCubeGeom,
+        new THREE.MeshBasicMaterial({ color: 0x866043 })
+      );
+      pMesh.visible = false;
+      particleGroup.add(pMesh);
+      particlePool.push({
+        mesh: pMesh,
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0.35,
+      });
+    }
+
+    const spawnBreakParticles = (pos: THREE.Vector3, colorHex = '#866043') => {
+      let spawned = 0;
+      for (let i = 0; i < particlePool.length; i++) {
+        const p = particlePool[i];
+        if (!p.mesh.visible && spawned < 10) {
+          p.mesh.position.set(
+            pos.x + (Math.random() - 0.5) * 1.5,
+            pos.y + (Math.random() - 0.5) * 1.5,
+            pos.z + (Math.random() - 0.5) * 1.5
+          );
+          p.vel.set(
+            (Math.random() - 0.5) * 12,
+            Math.random() * 8 + 4,
+            (Math.random() - 0.5) * 12
+          );
+          (p.mesh.material as THREE.MeshBasicMaterial).color.set(colorHex);
+          p.life = 0;
+          p.mesh.visible = true;
+          spawned++;
+        }
+      }
+    };
+
     // Orbit & Camera Controls state
     let isMouseDown = false;
     let mouseButton = 0; // 0: left, 1: middle, 2: right
@@ -418,8 +510,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         return;
       }
 
-      // Check Gizmo intersection on left click
-      if (mouseButton === 0 && selectedIdRef.current && gizmoGroup.visible) {
+      // Check Gizmo intersection on left click in standard transform modes
+      if (
+        mouseButton === 0 &&
+        selectedIdRef.current &&
+        gizmoGroup.visible &&
+        transformModeRef.current !== 'place' &&
+        transformModeRef.current !== 'mine'
+      ) {
         raycaster.setFromCamera(mouseNDC, camera);
         const gizmoHits = raycaster.intersectObjects(gizmoGroup.children, true);
         if (gizmoHits.length > 0) {
@@ -441,7 +539,51 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
       }
 
-      // If left click and not dragging gizmo, raycast to select instance in scene
+      // 1. MINECRAFT BLOCK PLACEMENT MODE
+      if (mouseButton === 0 && transformModeRef.current === 'place') {
+        if (placementGhost.visible) {
+          soundEngine.playBlockPlace(activeBlockTypeRef.current);
+          if (onInsertBlockRef.current) {
+            onInsertBlockRef.current(
+              {
+                x: placementGhost.position.x,
+                y: placementGhost.position.y,
+                z: placementGhost.position.z,
+              },
+              activeBlockTypeRef.current
+            );
+          }
+          return;
+        }
+      }
+
+      // 2. MINECRAFT MINE / TAP & DRAG REMOVAL MODE
+      if (mouseButton === 0 && transformModeRef.current === 'mine') {
+        raycaster.setFromCamera(mouseNDC, camera);
+        const interactiveMeshes: THREE.Object3D[] = [];
+        meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+
+        const hits = raycaster.intersectObjects(interactiveMeshes, true);
+        if (hits.length > 0) {
+          let hitObj: THREE.Object3D | null = hits[0].object;
+          while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+            hitObj = hitObj.parent;
+          }
+          if (hitObj && hitObj.userData.instanceId && hitObj.userData.instanceId !== 'baseplate-1') {
+            const instId = hitObj.userData.instanceId;
+            const inst = instancesRef.current.find((i) => i.id === instId);
+            soundEngine.playBlockBreak(inst?.blockType || inst?.material || 'stone');
+            spawnBreakParticles(hitObj.position, inst?.color || '#866043');
+            if (onDeleteInstanceRef.current) {
+              onDeleteInstanceRef.current(instId);
+            }
+            return;
+          }
+        }
+        return;
+      }
+
+      // 3. SELECT & FULL EDIT MODE
       if (mouseButton === 0) {
         raycaster.setFromCamera(mouseNDC, camera);
         const interactiveMeshes: THREE.Object3D[] = [];
@@ -457,8 +599,13 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             hitObj = hitObj.parent;
           }
           if (hitObj && hitObj.userData.instanceId) {
-            onSelectInstance(hitObj.userData.instanceId);
+            const id = hitObj.userData.instanceId;
+            onSelectInstance(id);
             soundEngine.playClick();
+            // Open full structure customizer
+            if (onOpenStructureEditorRef.current) {
+              onOpenStructureEditorRef.current();
+            }
           }
         } else {
           // Click on empty space -> drag to look / orbit camera
@@ -474,13 +621,64 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       mouseX = e.clientX;
       mouseY = e.clientY;
 
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      // 1. MINECRAFT PLACE MODE GHOST HOVER & SNAPPING
+      if (transformModeRef.current === 'place' && !isPlayModeRef.current) {
+        raycaster.setFromCamera(mouseNDC, camera);
+        const interactiveMeshes: THREE.Object3D[] = [];
+        meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+        const hits = raycaster.intersectObjects(interactiveMeshes, true);
+        if (hits.length > 0 && hits[0].point) {
+          const snap = gridSnapRef.current || 2;
+          const hit = hits[0];
+          const normal = hit.face ? hit.face.normal : _up;
+          const targetX = hit.point.x + normal.x * (snap * 0.5);
+          const targetY = hit.point.y + normal.y * (snap * 0.5);
+          const targetZ = hit.point.z + normal.z * (snap * 0.5);
+          const snappedX = Math.round(targetX / snap) * snap;
+          const snappedY = Math.max(snap * 0.5, Math.round(targetY / snap) * snap);
+          const snappedZ = Math.round(targetZ / snap) * snap;
+          placementGhost.position.set(snappedX, snappedY, snappedZ);
+          placementGhost.scale.set(snap, snap, snap);
+          placementGhost.visible = true;
+        } else {
+          placementGhost.visible = false;
+        }
+      } else {
+        placementGhost.visible = false;
+      }
+
+      // 2. MINECRAFT MINE / DRAG TO DESTROY BLOCKS (Desktop mouse hold & drag)
+      if (isMouseDown && mouseButton === 0 && transformModeRef.current === 'mine' && !isPlayModeRef.current) {
+        raycaster.setFromCamera(mouseNDC, camera);
+        const interactiveMeshes: THREE.Object3D[] = [];
+        meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+        const hits = raycaster.intersectObjects(interactiveMeshes, true);
+        if (hits.length > 0) {
+          let hitObj: THREE.Object3D | null = hits[0].object;
+          while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+            hitObj = hitObj.parent;
+          }
+          if (hitObj && hitObj.userData.instanceId && hitObj.userData.instanceId !== 'baseplate-1') {
+            const instId = hitObj.userData.instanceId;
+            const inst = instancesRef.current.find((i) => i.id === instId);
+            soundEngine.playBlockBreak(inst?.blockType || inst?.material || 'stone');
+            spawnBreakParticles(hitObj.position, inst?.color || '#866043');
+            if (onDeleteInstanceRef.current) {
+              onDeleteInstanceRef.current(instId);
+            }
+          }
+        }
+        return;
+      }
+
       if (!isMouseDown) return;
 
       // Handle Gizmo Dragging in Studio Edit Mode
       if (activeGizmoAxis && selectedIdRef.current && !isPlayModeRef.current) {
-        const rect = renderer.domElement.getBoundingClientRect();
-        mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(mouseNDC, camera);
 
         const hitPoint = new THREE.Vector3();
@@ -611,6 +809,59 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         mouseX = touches[0].x;
         mouseY = touches[0].y;
         isDraggingCamera = true;
+
+        // Mobile immediate tap-to-mine check
+        if (transformModeRef.current === 'mine' && !isPlayModeRef.current) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouseNDC.x = ((touches[0].x - rect.left) / rect.width) * 2 - 1;
+          mouseNDC.y = -((touches[0].y - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouseNDC, camera);
+          const interactiveMeshes: THREE.Object3D[] = [];
+          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+          const hits = raycaster.intersectObjects(interactiveMeshes, true);
+          if (hits.length > 0) {
+            let hitObj: THREE.Object3D | null = hits[0].object;
+            while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+              hitObj = hitObj.parent;
+            }
+            if (hitObj && hitObj.userData.instanceId && hitObj.userData.instanceId !== 'baseplate-1') {
+              const instId = hitObj.userData.instanceId;
+              const inst = instancesRef.current.find((i) => i.id === instId);
+              soundEngine.playBlockBreak(inst?.blockType || inst?.material || 'stone');
+              spawnBreakParticles(hitObj.position, inst?.color || '#866043');
+              if (onDeleteInstanceRef.current) {
+                onDeleteInstanceRef.current(instId);
+              }
+              isDraggingCamera = false;
+              return;
+            }
+          }
+        }
+
+        // Mobile place mode preview on touch start
+        if (transformModeRef.current === 'place' && !isPlayModeRef.current) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouseNDC.x = ((touches[0].x - rect.left) / rect.width) * 2 - 1;
+          mouseNDC.y = -((touches[0].y - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouseNDC, camera);
+          const interactiveMeshes: THREE.Object3D[] = [];
+          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+          const hits = raycaster.intersectObjects(interactiveMeshes, true);
+          if (hits.length > 0 && hits[0].point) {
+            const snap = gridSnapRef.current || 2;
+            const hit = hits[0];
+            const normal = hit.face ? hit.face.normal : _up;
+            const targetX = hit.point.x + normal.x * (snap * 0.5);
+            const targetY = hit.point.y + normal.y * (snap * 0.5);
+            const targetZ = hit.point.z + normal.z * (snap * 0.5);
+            const snappedX = Math.round(targetX / snap) * snap;
+            const snappedY = Math.max(snap * 0.5, Math.round(targetY / snap) * snap);
+            const snappedZ = Math.round(targetZ / snap) * snap;
+            placementGhost.position.set(snappedX, snappedY, snappedZ);
+            placementGhost.scale.set(snap, snap, snap);
+            placementGhost.visible = true;
+          }
+        }
       } else if (touches.length >= 2) {
         // Multi-touch gestures (Pinch-to-zoom & Two-finger pan)
         const t0 = touches[0];
@@ -637,13 +888,66 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
       const touches = Array.from(touchMap.values());
 
-      // 1-FINGER GESTURE: Smooth Orbit Rotation
+      // 1-FINGER GESTURE: Drag-to-mine, Place Preview, or Smooth Orbit Rotation
       if (touches.length === 1) {
         const t = touches[0];
         const deltaX = t.x - mouseX;
         const deltaY = t.y - mouseY;
         mouseX = t.x;
         mouseY = t.y;
+
+        // MINECRAFT TOUCH DRAG-TO-MINE
+        if (transformModeRef.current === 'mine' && !isPlayModeRef.current) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouseNDC.x = ((t.x - rect.left) / rect.width) * 2 - 1;
+          mouseNDC.y = -((t.y - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouseNDC, camera);
+          const interactiveMeshes: THREE.Object3D[] = [];
+          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+          const hits = raycaster.intersectObjects(interactiveMeshes, true);
+          if (hits.length > 0) {
+            let hitObj: THREE.Object3D | null = hits[0].object;
+            while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+              hitObj = hitObj.parent;
+            }
+            if (hitObj && hitObj.userData.instanceId && hitObj.userData.instanceId !== 'baseplate-1') {
+              const instId = hitObj.userData.instanceId;
+              const inst = instancesRef.current.find((i) => i.id === instId);
+              soundEngine.playBlockBreak(inst?.blockType || inst?.material || 'stone');
+              spawnBreakParticles(hitObj.position, inst?.color || '#866043');
+              if (onDeleteInstanceRef.current) {
+                onDeleteInstanceRef.current(instId);
+              }
+            }
+          }
+          return;
+        }
+
+        // MINECRAFT TOUCH PLACE GHOST MOVE
+        if (transformModeRef.current === 'place' && !isPlayModeRef.current) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouseNDC.x = ((t.x - rect.left) / rect.width) * 2 - 1;
+          mouseNDC.y = -((t.y - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouseNDC, camera);
+          const interactiveMeshes: THREE.Object3D[] = [];
+          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+          const hits = raycaster.intersectObjects(interactiveMeshes, true);
+          if (hits.length > 0 && hits[0].point) {
+            const snap = gridSnapRef.current || 2;
+            const hit = hits[0];
+            const normal = hit.face ? hit.face.normal : _up;
+            const targetX = hit.point.x + normal.x * (snap * 0.5);
+            const targetY = hit.point.y + normal.y * (snap * 0.5);
+            const targetZ = hit.point.z + normal.z * (snap * 0.5);
+            const snappedX = Math.round(targetX / snap) * snap;
+            const snappedY = Math.max(snap * 0.5, Math.round(targetY / snap) * snap);
+            const snappedZ = Math.round(targetZ / snap) * snap;
+            placementGhost.position.set(snappedX, snappedY, snappedZ);
+            placementGhost.scale.set(snap, snap, snap);
+            placementGhost.visible = true;
+          }
+          return;
+        }
 
         if (isPlayModeRef.current) {
           playerYaw -= deltaX * 0.006;
@@ -710,11 +1014,27 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         const t = e.changedTouches[i];
         const record = touchMap.get(t.identifier);
 
-        // Tap Detection in Studio Mode (Selection raycast)
+        // Tap Detection in Studio Mode
         if (record && !isPlayModeRef.current) {
           const moveDist = Math.hypot(t.clientX - record.startX, t.clientY - record.startY);
           const duration = now - record.startTime;
-          if (moveDist < 10 && duration < 300) {
+
+          // 1. PLACE MODE: Tap to place block at ghost location
+          if (transformModeRef.current === 'place' && placementGhost.visible && moveDist < 16 && duration < 400) {
+            soundEngine.playBlockPlace(activeBlockTypeRef.current);
+            if (onInsertBlockRef.current) {
+              onInsertBlockRef.current(
+                {
+                  x: placementGhost.position.x,
+                  y: placementGhost.position.y,
+                  z: placementGhost.position.z,
+                },
+                activeBlockTypeRef.current
+              );
+            }
+          }
+          // 2. SELECT & EDIT MODE: Tap to inspect and open structure editor
+          else if (moveDist < 14 && duration < 350 && transformModeRef.current !== 'mine') {
             const rect = renderer.domElement.getBoundingClientRect();
             mouseNDC.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
             mouseNDC.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
@@ -729,8 +1049,12 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
                 hitObj = hitObj.parent;
               }
               if (hitObj && hitObj.userData.instanceId) {
-                onSelectInstance(hitObj.userData.instanceId);
+                const id = hitObj.userData.instanceId;
+                onSelectInstance(id);
                 soundEngine.playClick();
+                if (onOpenStructureEditorRef.current) {
+                  onOpenStructureEditorRef.current();
+                }
               }
             } else {
               onSelectInstance(null);
@@ -1185,6 +1509,29 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
       }
 
+      // Update Minecraft voxel break particles (Zero GC)
+      for (let i = 0; i < particlePool.length; i++) {
+        const p = particlePool[i];
+        if (p.mesh.visible) {
+          p.life += delta;
+          if (p.life >= p.maxLife) {
+            p.mesh.visible = false;
+          } else {
+            p.vel.y -= 26 * delta; // Gravity
+            p.mesh.position.addScaledVector(p.vel, delta);
+            p.mesh.rotation.x += 10 * delta;
+            p.mesh.rotation.y += 10 * delta;
+            const scale = Math.max(0.01, 1 - p.life / p.maxLife);
+            p.mesh.scale.set(scale, scale, scale);
+          }
+        }
+      }
+
+      // Placement ghost breathing glow pulse
+      if (placementGhost.visible) {
+        innerGhost.scale.setScalar(0.95 + Math.sin(performance.now() * 0.008) * 0.03);
+      }
+
       renderer.render(scene, camera);
       frameId = requestAnimationFrame(tick);
     }
@@ -1311,10 +1658,12 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         }
 
         // Material creation
-        let mat: THREE.Material;
+        let mat: THREE.Material | THREE.Material[];
         const color = new THREE.Color(inst.color || '#94a3b8');
 
-        if (inst.className === 'SpawnLocation') {
+        if (inst.blockType) {
+          mat = getMinecraftBlockMaterial(inst.blockType, inst.color);
+        } else if (inst.className === 'SpawnLocation') {
           mat = new THREE.MeshStandardMaterial({
             map: spawnTexture,
             color: color,
@@ -1365,7 +1714,11 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         mesh = new THREE.Mesh(geom, mat);
         mesh.castShadow = inst.castShadow ?? true;
         mesh.receiveShadow = true;
-        mesh.userData = { instanceId: inst.id };
+        mesh.userData = {
+          instanceId: inst.id,
+          blockType: inst.blockType,
+          color: inst.color,
+        };
         scene.add(mesh);
         currentMeshMap.set(inst.id, mesh);
       }
@@ -1393,16 +1746,25 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           );
         }
 
-        // Update material color & transparency
-        const mat = mesh.material as THREE.MeshStandardMaterial;
-        if (mat) {
-          mat.color.set(inst.color || '#94a3b8');
-          if (inst.material === 'Neon') {
-            mat.emissive.set(inst.color || '#94a3b8');
-            mat.emissiveIntensity = 0.85;
+        // Update material color & transparency or Minecraft block texture
+        if (inst.blockType) {
+          if (mesh.userData.blockType !== inst.blockType || mesh.userData.color !== inst.color) {
+            mesh.material = getMinecraftBlockMaterial(inst.blockType, inst.color);
+            mesh.userData.blockType = inst.blockType;
+            mesh.userData.color = inst.color;
           }
-          mat.transparent = (inst.transparency || 0) > 0;
-          mat.opacity = 1 - (inst.transparency || 0);
+        } else {
+          const mat = mesh.material;
+          if (mat && !Array.isArray(mat)) {
+            const stdMat = mat as THREE.MeshStandardMaterial;
+            if (stdMat.color) stdMat.color.set(inst.color || '#94a3b8');
+            if (inst.material === 'Neon' && stdMat.emissive) {
+              stdMat.emissive.set(inst.color || '#94a3b8');
+              stdMat.emissiveIntensity = 0.85;
+            }
+            stdMat.transparent = (inst.transparency || 0) > 0;
+            stdMat.opacity = 1 - (inst.transparency || 0);
+          }
         }
       }
 

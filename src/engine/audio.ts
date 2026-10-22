@@ -283,6 +283,127 @@ class RobloxAudioEngine {
       // Ignored
     }
   }
+
+  // Authentic Minecraft Block Placement Sound
+  playBlockPlace(blockType: string = 'stone') {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      let freq = 240;
+      let duration = 0.08;
+      if (blockType === 'wood') freq = 180;
+      else if (blockType === 'grass' || blockType === 'dirt') freq = 120;
+      else if (blockType === 'glass') freq = 750;
+      else if (blockType === 'diamond' || blockType === 'gold') freq = 420;
+      else if (blockType === 'tnt') freq = 200;
+
+      osc.type = blockType === 'glass' ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + duration);
+
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    } catch {
+      // Ignored
+    }
+  }
+
+  // Authentic Minecraft Block Breaking / Destroy Sound
+  playBlockBreak(blockType: string = 'stone') {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      // Two-tone crunch
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      let baseFreq = blockType === 'glass' ? 880 : blockType === 'wood' ? 140 : 180;
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(baseFreq, now);
+      osc1.frequency.exponentialRampToValueAtTime(baseFreq * 0.3, now + 0.12);
+
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(baseFreq * 1.5, now);
+      osc2.frequency.exponentialRampToValueAtTime(baseFreq * 0.4, now + 0.12);
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.15);
+      osc2.stop(now + 0.15);
+    } catch {
+      // Ignored
+    }
+  }
+
+  // Continuous mining hit sound (while dragging across blocks)
+  playMineHit() {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(260 + Math.random() * 80, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.04);
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } catch {
+      // Ignored
+    }
+  }
+
+  // TNT Hiss / Fuse sound
+  playTntFuse() {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.linearRampToValueAtTime(900, now + 1.2);
+
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.linearRampToValueAtTime(0.25, now + 1.0);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 1.35);
+    } catch {
+      // Ignored
+    }
+  }
 }
 
 export const soundEngine = new RobloxAudioEngine();
