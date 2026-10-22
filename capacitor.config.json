@@ -1,0 +1,11 @@
+{
+  "appId": "com.opstudio.web",
+  "appName": "Roblox Studio Web",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

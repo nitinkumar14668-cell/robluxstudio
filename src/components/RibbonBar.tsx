@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { StudioTab, TransformMode, PartShape, PartMaterial } from '../types/roblox';
 import { soundEngine } from '../engine/audio';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface RibbonBarProps {
   activeTab: StudioTab;
@@ -229,11 +230,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
           Roblox Studio - Place1
         </div>
 
-        {/* Right Section: Publish & Account */}
-        <div className="flex items-center gap-2">
+        {/* Right Section: Publish, Android PWA & Account */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <PWAInstallButton />
+
           <button
             onClick={onOpenGamesGallery}
-            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[11px] font-medium"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-[11px] font-medium"
           >
             <Globe className="w-3 h-3 text-sky-400" />
             <span>Discover</span>
@@ -241,13 +244,13 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
 
           <button
             onClick={onPublishClick}
-            className="flex items-center gap-1.5 px-3 py-0.5 rounded bg-[#00a2ff] hover:bg-[#0092e6] text-white text-[11px] font-semibold shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 rounded bg-[#00a2ff] hover:bg-[#0092e6] text-white text-[11px] font-semibold shadow-xs"
           >
             <Upload className="w-3 h-3" />
-            <span>Publish</span>
+            <span className="hidden xs:inline">Publish</span>
           </button>
 
-          <div className="h-3.5 w-px bg-neutral-700 mx-0.5" />
+          <div className="h-3.5 w-px bg-neutral-700 mx-0.5 hidden sm:block" />
 
           {/* User badge */}
           <div className="flex items-center gap-1.5 pl-1">
@@ -260,7 +263,7 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
       </div>
 
       {/* 2. Ribbon Tabs */}
-      <div className="flex items-center px-2 bg-[#26262b] border-b border-[#1c1c20] text-xs font-medium">
+      <div className="flex items-center px-2 bg-[#26262b] border-b border-[#1c1c20] text-xs font-medium overflow-x-auto">
         {(['home', 'model', 'test', 'view', 'plugins'] as StudioTab[]).map((tab) => (
           <button
             key={tab}

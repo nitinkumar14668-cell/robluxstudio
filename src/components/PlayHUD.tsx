@@ -155,94 +155,146 @@ export const PlayHUD: React.FC<PlayHUDProps> = ({
         </div>
       )}
 
-      {/* Mobile / On-Screen Touch Controls (D-Pad and Jump) */}
-      <div className="absolute bottom-6 left-6 pointer-events-auto flex flex-col items-center gap-1 select-none z-30">
+      {/* Mobile / Android On-Screen Touch Controls (U, D, L, R D-Pad and Jump) */}
+      <div className="absolute bottom-5 left-5 pointer-events-auto flex flex-col items-center gap-1.5 select-none z-30 touch-none">
+        {/* Button U = Up / Forward */}
         <button
           onTouchStart={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyU', key: 'u', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp', key: 'ArrowUp', bubbles: true }));
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyU', key: 'u', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowUp', key: 'ArrowUp', bubbles: true }));
           }}
-          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }))}
-          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }))}
-          className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+          onMouseDown={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyU', key: 'u', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true }));
+          }}
+          onMouseUp={() => {
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyU', key: 'u', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true }));
+          }}
+          className="w-13 h-13 rounded-2xl bg-[#1e1e24]/90 active:bg-sky-500 border-2 border-white/20 active:border-sky-300 text-white flex flex-col items-center justify-center font-bold text-sm backdrop-blur-md shadow-2xl transition-transform active:scale-95"
+          title="Up / Forward (U)"
         >
-          ▲
+          <span className="text-base leading-none">▲</span>
+          <span className="text-[10px] text-sky-400 font-extrabold leading-none">U</span>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Button L = Left side */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
-              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyL', key: 'l', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', key: 'a', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', bubbles: true }));
             }}
             onTouchEnd={(e) => {
               e.preventDefault();
-              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyL', key: 'l', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', key: 'a', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowLeft', key: 'ArrowLeft', bubbles: true }));
             }}
-            onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true }))}
-            onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', bubbles: true }))}
-            className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+            onMouseDown={() => {
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyL', key: 'l', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA', key: 'a', bubbles: true }));
+            }}
+            onMouseUp={() => {
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyL', key: 'l', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA', key: 'a', bubbles: true }));
+            }}
+            className="w-13 h-13 rounded-2xl bg-[#1e1e24]/90 active:bg-sky-500 border-2 border-white/20 active:border-sky-300 text-white flex flex-col items-center justify-center font-bold text-sm backdrop-blur-md shadow-2xl transition-transform active:scale-95"
+            title="Left side (L)"
           >
-            ◀
+            <span className="text-base leading-none">◀</span>
+            <span className="text-[10px] text-sky-400 font-extrabold leading-none">L</span>
           </button>
 
-          <div className="w-6 h-6 rounded-full bg-white/20" />
+          {/* D-Pad Center Knob */}
+          <div className="w-8 h-8 rounded-full bg-neutral-800/80 border border-white/10 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-sky-500/50" />
+          </div>
 
+          {/* Button R = Right side */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
-              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', key: 'ArrowRight', bubbles: true }));
             }}
             onTouchEnd={(e) => {
               e.preventDefault();
-              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r', bubbles: true }));
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight', key: 'ArrowRight', bubbles: true }));
             }}
-            onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', bubbles: true }))}
-            onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', bubbles: true }))}
-            className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+            onMouseDown={() => {
+              window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true }));
+            }}
+            onMouseUp={() => {
+              window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyR', key: 'r', bubbles: true }));
+            }}
+            className="w-13 h-13 rounded-2xl bg-[#1e1e24]/90 active:bg-sky-500 border-2 border-white/20 active:border-sky-300 text-white flex flex-col items-center justify-center font-bold text-sm backdrop-blur-md shadow-2xl transition-transform active:scale-95"
+            title="Right side (R)"
           >
-            ▶
+            <span className="text-base leading-none">▶</span>
+            <span className="text-[10px] text-sky-400 font-extrabold leading-none">R</span>
           </button>
         </div>
 
+        {/* Button D = Down / Back */}
         <button
           onTouchStart={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', key: 'd', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', key: 's', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', key: 'ArrowDown', bubbles: true }));
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', key: 'd', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', key: 's', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowDown', key: 'ArrowDown', bubbles: true }));
           }}
-          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', bubbles: true }))}
-          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', bubbles: true }))}
-          className="w-12 h-12 rounded-full bg-black/60 active:bg-sky-500/80 border border-white/20 text-white flex items-center justify-center font-bold text-lg backdrop-blur-xs shadow-lg"
+          onMouseDown={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', key: 'd', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyS', key: 's', bubbles: true }));
+          }}
+          onMouseUp={() => {
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', key: 'd', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyS', key: 's', bubbles: true }));
+          }}
+          className="w-13 h-13 rounded-2xl bg-[#1e1e24]/90 active:bg-sky-500 border-2 border-white/20 active:border-sky-300 text-white flex flex-col items-center justify-center font-bold text-sm backdrop-blur-md shadow-2xl transition-transform active:scale-95"
+          title="Down / Backward (D)"
         >
-          ▼
+          <span className="text-[10px] text-sky-400 font-extrabold leading-none">D</span>
+          <span className="text-base leading-none">▼</span>
         </button>
       </div>
 
       {/* Mobile Jump Button on Bottom-Right */}
-      <div className="absolute bottom-8 right-8 pointer-events-auto select-none z-30">
+      <div className="absolute bottom-6 right-6 pointer-events-auto select-none z-30 touch-none flex flex-col items-end gap-2">
         <button
           onTouchStart={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
-            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }));
+            window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', key: ' ', bubbles: true }));
           }}
-          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }))}
-          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', bubbles: true }))}
-          className="w-16 h-16 rounded-full bg-[#00a2ff]/90 active:bg-sky-400 border-2 border-white/40 text-white flex flex-col items-center justify-center font-extrabold text-sm shadow-2xl backdrop-blur-xs"
+          onMouseDown={() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }))}
+          onMouseUp={() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', key: ' ', bubbles: true }))}
+          className="w-18 h-18 rounded-full bg-gradient-to-tr from-sky-600 to-[#00a2ff] active:from-sky-500 active:to-sky-400 border-3 border-white/40 text-white flex flex-col items-center justify-center font-black text-sm shadow-2xl backdrop-blur-md transition-transform active:scale-95"
+          title="Jump (Space)"
         >
-          <span>JUMP</span>
-          <span className="text-[10px] opacity-75">Space</span>
+          <span className="tracking-wider">JUMP</span>
+          <span className="text-[9px] text-sky-100 font-semibold opacity-90">Space</span>
         </button>
       </div>
 

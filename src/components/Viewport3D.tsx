@@ -443,6 +443,89 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       isDraggingCamera = false;
     };
 
+    // Touch Event Handling for Android / Mobile Devices
+    let lastPinchDistance = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+        mouseButton = 0;
+        isMouseDown = true;
+        isDraggingCamera = true;
+
+        mouseNDC.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        mouseNDC.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+
+        if (!isPlayModeRef.current) {
+          raycaster.setFromCamera(mouseNDC, camera);
+          const interactiveMeshes: THREE.Object3D[] = [];
+          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+          const hits = raycaster.intersectObjects(interactiveMeshes, true);
+          if (hits.length > 0) {
+            let hitObj: THREE.Object3D | null = hits[0].object;
+            while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+              hitObj = hitObj.parent;
+            }
+            if (hitObj && hitObj.userData.instanceId) {
+              onSelectInstance(hitObj.userData.instanceId);
+              soundEngine.playClick();
+            }
+          }
+        }
+      } else if (e.touches.length === 2) {
+        // Multi-touch pinch start
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastPinchDistance = Math.hypot(dx, dy);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && isMouseDown) {
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - mouseX;
+        const deltaY = touch.clientY - mouseY;
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+
+        if (isPlayModeRef.current) {
+          playerYaw -= deltaX * 0.007;
+          playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch + deltaY * 0.007));
+        } else {
+          cameraSpherical.theta -= deltaX * 0.007;
+          cameraSpherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, cameraSpherical.phi - deltaY * 0.007));
+          camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
+          camera.lookAt(cameraTarget);
+        }
+      } else if (e.touches.length === 2) {
+        // 2-finger pinch zoom
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDistance = Math.hypot(dx, dy);
+
+        if (lastPinchDistance > 0) {
+          const pinchDelta = (lastPinchDistance - currentDistance) * 0.08;
+          if (isPlayModeRef.current) {
+            playerCameraDistance = Math.max(4, Math.min(30, playerCameraDistance + pinchDelta));
+          } else {
+            cameraSpherical.radius = Math.max(4, Math.min(250, cameraSpherical.radius + pinchDelta));
+            camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
+            camera.lookAt(cameraTarget);
+          }
+        }
+        lastPinchDistance = currentDistance;
+      }
+    };
+
+    const onTouchEnd = () => {
+      isMouseDown = false;
+      isDraggingCamera = false;
+      lastPinchDistance = 0;
+    };
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (isPlayModeRef.current) {
@@ -459,9 +542,14 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     };
 
     const dom = renderer.domElement;
+    dom.style.touchAction = 'none';
     dom.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mousemove', onPointerMove);
     window.addEventListener('mouseup', onPointerUp);
+    dom.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
     dom.addEventListener('wheel', onWheel, { passive: false });
     dom.addEventListener('contextmenu', onContextMenu);
 
@@ -757,6 +845,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       dom.removeEventListener('mousedown', onPointerDown);
       window.removeEventListener('mousemove', onPointerMove);
       window.removeEventListener('mouseup', onPointerUp);
+      dom.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
       dom.removeEventListener('wheel', onWheel);
       dom.removeEventListener('contextmenu', onContextMenu);
       renderer.dispose();
