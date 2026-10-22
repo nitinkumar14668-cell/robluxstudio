@@ -22,6 +22,10 @@ import {
   Plus,
   Layers,
   ChevronDown,
+  Smartphone,
+  Monitor,
+  Settings,
+  Bomb,
 } from 'lucide-react';
 import { StudioTab, TransformMode, PartShape, PartMaterial } from '../types/roblox';
 import { soundEngine } from '../engine/audio';
@@ -59,6 +63,10 @@ interface RibbonBarProps {
   onToggleExplorer: () => void;
   isPropertiesOpen: boolean;
   onToggleProperties: () => void;
+  uiMode?: 'mobile' | 'desktop' | 'auto';
+  onToggleUIMode?: () => void;
+  onOpenSettings?: () => void;
+  onTriggerExplosion?: () => void;
 }
 
 export const RibbonBar: React.FC<RibbonBarProps> = ({
@@ -93,6 +101,10 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
   onToggleExplorer,
   isPropertiesOpen,
   onToggleProperties,
+  uiMode = 'auto',
+  onToggleUIMode,
+  onOpenSettings,
+  onTriggerExplosion,
 }) => {
   const [isPartMenuOpen, setIsPartMenuOpen] = useState(false);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
@@ -249,6 +261,45 @@ export const RibbonBar: React.FC<RibbonBarProps> = ({
             <Upload className="w-3 h-3" />
             <span className="hidden xs:inline">Publish</span>
           </button>
+
+          {/* Android vs Desktop UI Toggle */}
+          {onToggleUIMode && (
+            <button
+              onClick={() => {
+                soundEngine.playClick();
+                onToggleUIMode();
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-sky-950/70 hover:bg-sky-900 border border-sky-500/40 text-sky-300 text-[11px] font-semibold transition-colors"
+              title="Toggle Android / Desktop Interface"
+            >
+              {uiMode === 'mobile' ? (
+                <>
+                  <Smartphone className="w-3 h-3 text-sky-400" />
+                  <span className="hidden sm:inline">📱 Android</span>
+                </>
+              ) : (
+                <>
+                  <Monitor className="w-3 h-3 text-sky-400" />
+                  <span className="hidden sm:inline">💻 Desktop</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* App Settings & Realistic Physics Button */}
+          {onOpenSettings && (
+            <button
+              onClick={() => {
+                soundEngine.playClick();
+                onOpenSettings();
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 text-[11px] font-semibold transition-colors"
+              title="Roblox App Settings & Realistic Modules"
+            >
+              <Settings className="w-3 h-3 text-amber-400" />
+              <span className="hidden md:inline">Settings</span>
+            </button>
+          )}
 
           <div className="h-3.5 w-px bg-neutral-700 mx-0.5 hidden sm:block" />
 

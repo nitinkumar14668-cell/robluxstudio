@@ -1,10 +1,11 @@
 import { RobloxInstance, PublishedGame } from '../types/roblox';
 
 /**
- * Creates Classic Baseplate workspace
+ * Creates Realistic Physics Playground (Powered by Cannon.js)
  */
-export function createBaseplateInstances(): RobloxInstance[] {
-  return [
+export function createRealisticPhysicsPlaygroundInstances(): RobloxInstance[] {
+  const instances: RobloxInstance[] = [
+    // 1. Massive Baseplate
     {
       id: 'baseplate-1',
       name: 'Baseplate',
@@ -12,9 +13,9 @@ export function createBaseplateInstances(): RobloxInstance[] {
       parentId: 'workspace',
       shape: 'Block',
       position: { x: 0, y: -1, z: 0 },
-      size: { x: 120, y: 2, z: 120 },
+      size: { x: 160, y: 2, z: 160 },
       rotation: { x: 0, y: 0, z: 0 },
-      color: '#64748b', // Classic slate gray
+      color: '#475569',
       material: 'Plastic',
       transparency: 0,
       reflectance: 0.1,
@@ -22,16 +23,17 @@ export function createBaseplateInstances(): RobloxInstance[] {
       canCollide: true,
       castShadow: true,
     },
+    // 2. Spawn Location
     {
       id: 'spawn-1',
       name: 'SpawnLocation',
       className: 'SpawnLocation',
       parentId: 'workspace',
       shape: 'Block',
-      position: { x: 0, y: 0.25, z: 0 },
+      position: { x: 0, y: 0.25, z: 12 },
       size: { x: 8, y: 0.5, z: 8 },
       rotation: { x: 0, y: 0, z: 0 },
-      color: '#e2e8f0',
+      color: '#f8fafc',
       material: 'SmoothPlastic',
       transparency: 0,
       reflectance: 0.2,
@@ -40,15 +42,16 @@ export function createBaseplateInstances(): RobloxInstance[] {
       castShadow: true,
       isCheckpoint: true,
     },
+    // 3. Welcome & Realistic Physics Signboard
     {
-      id: 'welcome-sign',
-      name: 'Welcome Sign',
+      id: 'sign-physics',
+      name: 'Cannon.js Physics Sign',
       className: 'Part',
       parentId: 'workspace',
       shape: 'Block',
-      position: { x: 0, y: 3, z: -10 },
-      size: { x: 10, y: 4, z: 1 },
-      rotation: { x: 0, y: 0, z: 0 },
+      position: { x: 0, y: 3.5, z: 17 },
+      size: { x: 12, y: 4, z: 1 },
+      rotation: { x: 0, y: 180, z: 0 },
       color: '#0284c7',
       material: 'Neon',
       transparency: 0,
@@ -56,14 +59,15 @@ export function createBaseplateInstances(): RobloxInstance[] {
       anchored: true,
       canCollide: true,
     },
+    // 4. Guide NPC Noob
     {
       id: 'npc-noob',
       name: 'Guide Noob',
       className: 'NPC',
       parentId: 'workspace',
-      position: { x: 6, y: 0, z: -4 },
+      position: { x: 6, y: 0, z: 10 },
       size: { x: 2, y: 5, z: 2 },
-      rotation: { x: 0, y: -30, z: 0 },
+      rotation: { x: 0, y: -45, z: 0 },
       color: '#f5cd2f',
       material: 'Plastic',
       transparency: 0,
@@ -71,9 +75,194 @@ export function createBaseplateInstances(): RobloxInstance[] {
       anchored: true,
       canCollide: true,
       npcType: 'Noob',
-      dialogue: 'Welcome to Roblox Studio! Click Play (F5) to test or use Home tools to build your world!',
+      dialogue: 'Cannon.js Real-time Physics active! Push the unanchored wooden crates and watch them tumble with realistic gravity!',
+    },
+    // 5. Trampoline (Super Bouncy Pad)
+    {
+      id: 'trampoline-1',
+      name: 'Super Trampoline',
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Block',
+      position: { x: -14, y: 0.3, z: 0 },
+      size: { x: 7, y: 0.6, z: 7 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: '#ec4899',
+      material: 'Neon',
+      transparency: 0,
+      reflectance: 0.6,
+      anchored: true,
+      canCollide: true,
+      castShadow: true,
+      isJumpPad: true,
+    },
+    // 6. Speed Boost Pad
+    {
+      id: 'speedpad-1',
+      name: 'Speed Boost Pad',
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Block',
+      position: { x: 14, y: 0.25, z: 0 },
+      size: { x: 6, y: 0.5, z: 6 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: '#06b6d4',
+      material: 'Neon',
+      transparency: 0,
+      reflectance: 0.5,
+      anchored: true,
+      canCollide: true,
+      castShadow: true,
+      isSpeedPad: true,
+    },
+    // 7. Bouncy Rolling Physics Beach Ball (Unanchored Sphere)
+    {
+      id: 'physics-sphere-1',
+      name: 'Bouncy Physics Ball',
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Sphere',
+      position: { x: 4, y: 5, z: 0 },
+      size: { x: 3.5, y: 3.5, z: 3.5 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: '#ef4444',
+      material: 'Plastic',
+      transparency: 0,
+      reflectance: 0.3,
+      anchored: false, // DYNAMIC CANNON BODY
+      canCollide: true,
+      castShadow: true,
+    },
+    // 8. Collectible Coins
+    {
+      id: 'coin-1',
+      name: 'CoinCollectible_1',
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Cylinder',
+      position: { x: -14, y: 8, z: 0 },
+      size: { x: 1.6, y: 0.3, z: 1.6 },
+      rotation: { x: 90, y: 0, z: 0 },
+      color: '#facc15',
+      material: 'Neon',
+      transparency: 0,
+      reflectance: 0.8,
+      anchored: true,
+      canCollide: false,
+      isCoin: true,
+      coinValue: 25,
+    },
+    {
+      id: 'coin-2',
+      name: 'CoinCollectible_2',
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Cylinder',
+      position: { x: 0, y: 3, z: -16 },
+      size: { x: 1.6, y: 0.3, z: 1.6 },
+      rotation: { x: 90, y: 0, z: 0 },
+      color: '#facc15',
+      material: 'Neon',
+      transparency: 0,
+      reflectance: 0.8,
+      anchored: true,
+      canCollide: false,
+      isCoin: true,
+      coinValue: 15,
     },
   ];
+
+  // 9. Pyramidal Stack of Unanchored Pushable Crates (Cannon.js real-time rigid bodies)
+  const crateColors = ['#b45309', '#d97706', '#92400e', '#78350f'];
+  let crateIndex = 1;
+  // Bottom row (3 crates)
+  for (let i = -1; i <= 1; i++) {
+    instances.push({
+      id: `crate-${crateIndex++}`,
+      name: `PushableCrate_B${i + 2}`,
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Block',
+      position: { x: i * 3.2, y: 1.6, z: -8 },
+      size: { x: 3, y: 3, z: 3 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: crateColors[(crateIndex - 1) % crateColors.length],
+      material: 'Wood',
+      transparency: 0,
+      reflectance: 0.1,
+      anchored: false, // DYNAMIC RIGID BODY
+      canCollide: true,
+      castShadow: true,
+    });
+  }
+  // Middle row (2 crates)
+  for (let i = -0.5; i <= 0.5; i += 1) {
+    instances.push({
+      id: `crate-${crateIndex++}`,
+      name: `PushableCrate_M${crateIndex}`,
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Block',
+      position: { x: i * 3.2, y: 4.7, z: -8 },
+      size: { x: 3, y: 3, z: 3 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: crateColors[(crateIndex - 1) % crateColors.length],
+      material: 'Wood',
+      transparency: 0,
+      reflectance: 0.1,
+      anchored: false, // DYNAMIC RIGID BODY
+      canCollide: true,
+      castShadow: true,
+    });
+  }
+  // Top crate (1 crate)
+  instances.push({
+    id: `crate-${crateIndex++}`,
+    name: 'PushableCrate_Top',
+    className: 'Part',
+    parentId: 'workspace',
+    shape: 'Block',
+    position: { x: 0, y: 7.8, z: -8 },
+    size: { x: 3, y: 3, z: 3 },
+    rotation: { x: 0, y: 0, z: 0 },
+    color: '#f59e0b',
+    material: 'Wood',
+    transparency: 0,
+    reflectance: 0.15,
+    anchored: false, // DYNAMIC RIGID BODY
+    canCollide: true,
+    castShadow: true,
+  });
+
+  // 10. Domino Topple Line (6 standing bricks ready to chain reaction)
+  for (let d = 0; d < 5; d++) {
+    instances.push({
+      id: `domino-${d + 1}`,
+      name: `Domino_${d + 1}`,
+      className: 'Part',
+      parentId: 'workspace',
+      shape: 'Block',
+      position: { x: 10, y: 2.5, z: -6 - d * 2.6 },
+      size: { x: 2, y: 5, z: 0.6 },
+      rotation: { x: 0, y: 0, z: 0 },
+      color: '#3b82f6',
+      material: 'Plastic',
+      transparency: 0,
+      reflectance: 0.2,
+      anchored: false, // DYNAMIC RIGID BODY
+      canCollide: true,
+      castShadow: true,
+    });
+  }
+
+  return instances;
+}
+
+/**
+ * Creates Classic Baseplate workspace
+ */
+export function createBaseplateInstances(): RobloxInstance[] {
+  return createRealisticPhysicsPlaygroundInstances();
 }
 
 /**
@@ -370,6 +559,24 @@ export function createLavaEscapeInstances(): RobloxInstance[] {
  * Pre-populated initial published games
  */
 export const DEFAULT_PUBLISHED_GAMES: PublishedGame[] = [
+  {
+    id: 'game-physics-playground',
+    title: '⚡ Realistic Cannon.js Physics Playground',
+    description: 'Real-time Cannon.js rigid body physics: pushable wooden crates, toppling domino chain, bouncy beach ball, neon trampolines, and collectible coins!',
+    creator: 'nitinkumar14668',
+    genre: 'Sandbox',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    visits: 21500,
+    likes: 3100,
+    instances: createRealisticPhysicsPlaygroundInstances(),
+    lighting: {
+      timeOfDay: 15,
+      ambientColor: '#ffffff',
+      fogDensity: 0.003,
+      skyType: 'clear',
+    },
+  },
   {
     id: 'game-super-obby',
     title: '⭐ Super Obby Tower 3D',

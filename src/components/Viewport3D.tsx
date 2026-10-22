@@ -5,6 +5,7 @@ import { RobloxInstance, TransformMode, PlayerStats } from '../types/roblox';
 import { createStudsTexture, createSpawnTexture, createBrickTexture, createWoodTexture } from '../engine/materials';
 import { createRobloxAvatar, RobloxAvatarInstance } from '../engine/avatar';
 import { soundEngine } from '../engine/audio';
+import { physicsEngine } from '../engine/physics';
 
 interface Viewport3DProps {
   instances: RobloxInstance[];
@@ -20,6 +21,8 @@ interface Viewport3DProps {
   skyType: 'clear' | 'sunset' | 'night' | 'cyberpunk';
   cameraPreset?: string | null;
   onClearCameraPreset?: () => void;
+  joystickInput?: { x: number; y: number };
+  isJumpPressed?: boolean;
 }
 
 export const Viewport3D: React.FC<Viewport3DProps> = ({
@@ -36,6 +39,8 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   skyType,
   cameraPreset,
   onClearCameraPreset,
+  joystickInput,
+  isJumpPressed,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const instancesRef = useRef<RobloxInstance[]>(instances);
@@ -50,6 +55,10 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   gridSnapRef.current = gridSnap;
   const playerStatsRef = useRef<PlayerStats>(playerStats);
   playerStatsRef.current = playerStats;
+  const joystickInputRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  joystickInputRef.current = joystickInput || { x: 0, y: 0 };
+  const isJumpPressedRef = useRef<boolean>(false);
+  isJumpPressedRef.current = Boolean(isJumpPressed);
 
   // Track meshes map
   const meshMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
@@ -443,95 +452,192 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       isDraggingCamera = false;
     };
 
-    // Touch Event Handling for Android / Mobile Devices
-    let lastPinchDistance = 0;
+    // ========================================================
+    // ADVANCED MULTI-TOUCH CAMERA CONTROLLER (PINCH & PAN)
+    // ========================================================
+    interface TouchPoint {
+      id: number;
+      x: number;
+      y: number;
+      startX: number;
+      startY: number;
+      startTime: number;
+    }
+    const touchMap = new Map<number, TouchPoint>();
+    let prevPinchDist = 0;
+    let prevMidpoint = { x: 0, y: 0 };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        const rect = renderer.domElement.getBoundingClientRect();
-        mouseX = touch.clientX;
-        mouseY = touch.clientY;
-        mouseButton = 0;
-        isMouseDown = true;
+      const now = performance.now();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        touchMap.set(t.identifier, {
+          id: t.identifier,
+          x: t.clientX,
+          y: t.clientY,
+          startX: t.clientX,
+          startY: t.clientY,
+          startTime: now,
+        });
+      }
+
+      const touches = Array.from(touchMap.values());
+      if (touches.length === 1) {
+        // Single finger start: record for orbit or tap selection
+        mouseX = touches[0].x;
+        mouseY = touches[0].y;
         isDraggingCamera = true;
-
-        mouseNDC.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
-        mouseNDC.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
-
-        if (!isPlayModeRef.current) {
-          raycaster.setFromCamera(mouseNDC, camera);
-          const interactiveMeshes: THREE.Object3D[] = [];
-          meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
-          const hits = raycaster.intersectObjects(interactiveMeshes, true);
-          if (hits.length > 0) {
-            let hitObj: THREE.Object3D | null = hits[0].object;
-            while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
-              hitObj = hitObj.parent;
-            }
-            if (hitObj && hitObj.userData.instanceId) {
-              onSelectInstance(hitObj.userData.instanceId);
-              soundEngine.playClick();
-            }
-          }
-        }
-      } else if (e.touches.length === 2) {
-        // Multi-touch pinch start
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        lastPinchDistance = Math.hypot(dx, dy);
+      } else if (touches.length >= 2) {
+        // Multi-touch gestures (Pinch-to-zoom & Two-finger pan)
+        const t0 = touches[0];
+        const t1 = touches[1];
+        prevPinchDist = Math.hypot(t0.x - t1.x, t0.y - t1.y);
+        prevMidpoint = {
+          x: (t0.x + t1.x) / 2,
+          y: (t0.y + t1.y) / 2,
+        };
+        isDraggingCamera = false;
       }
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1 && isMouseDown) {
-        const touch = e.touches[0];
-        const deltaX = touch.clientX - mouseX;
-        const deltaY = touch.clientY - mouseY;
-        mouseX = touch.clientX;
-        mouseY = touch.clientY;
+      // Update coordinates for active touches
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const existing = touchMap.get(t.identifier);
+        if (existing) {
+          existing.x = t.clientX;
+          existing.y = t.clientY;
+        }
+      }
+
+      const touches = Array.from(touchMap.values());
+
+      // 1-FINGER GESTURE: Smooth Orbit Rotation
+      if (touches.length === 1) {
+        const t = touches[0];
+        const deltaX = t.x - mouseX;
+        const deltaY = t.y - mouseY;
+        mouseX = t.x;
+        mouseY = t.y;
 
         if (isPlayModeRef.current) {
-          playerYaw -= deltaX * 0.007;
-          playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch + deltaY * 0.007));
+          playerYaw -= deltaX * 0.006;
+          playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch + deltaY * 0.006));
         } else {
-          cameraSpherical.theta -= deltaX * 0.007;
-          cameraSpherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, cameraSpherical.phi - deltaY * 0.007));
+          cameraSpherical.theta -= deltaX * 0.006;
+          cameraSpherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, cameraSpherical.phi - deltaY * 0.006));
           camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
           camera.lookAt(cameraTarget);
         }
-      } else if (e.touches.length === 2) {
-        // 2-finger pinch zoom
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        const currentDistance = Math.hypot(dx, dy);
+      }
+      // 2-FINGER GESTURE: Pinch-To-Zoom & Multi-Touch Panning simultaneously
+      else if (touches.length >= 2) {
+        const t0 = touches[0];
+        const t1 = touches[1];
+        const currentPinchDist = Math.hypot(t0.x - t1.x, t0.y - t1.y);
+        const currentMid = {
+          x: (t0.x + t1.x) / 2,
+          y: (t0.y + t1.y) / 2,
+        };
 
-        if (lastPinchDistance > 0) {
-          const pinchDelta = (lastPinchDistance - currentDistance) * 0.08;
+        // 1. PINCH TO ZOOM
+        if (prevPinchDist > 0 && currentPinchDist > 0) {
+          const pinchDelta = (prevPinchDist - currentPinchDist);
           if (isPlayModeRef.current) {
-            playerCameraDistance = Math.max(4, Math.min(30, playerCameraDistance + pinchDelta));
+            playerCameraDistance = Math.max(3.0, Math.min(35.0, playerCameraDistance + pinchDelta * 0.05));
           } else {
-            cameraSpherical.radius = Math.max(4, Math.min(250, cameraSpherical.radius + pinchDelta));
+            cameraSpherical.radius = Math.max(4.0, Math.min(300.0, cameraSpherical.radius + pinchDelta * 0.07));
             camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
             camera.lookAt(cameraTarget);
           }
         }
-        lastPinchDistance = currentDistance;
+        prevPinchDist = currentPinchDist;
+
+        // 2. TWO-FINGER PANNING (Parallel to Camera Screen Plane)
+        if (prevMidpoint.x !== 0 && prevMidpoint.y !== 0) {
+          const deltaMidX = currentMid.x - prevMidpoint.x;
+          const deltaMidY = currentMid.y - prevMidpoint.y;
+
+          if (!isPlayModeRef.current) {
+            const panSpeed = 0.0016 * Math.max(10, cameraSpherical.radius);
+            const camForward = new THREE.Vector3();
+            camera.getWorldDirection(camForward);
+            const camRight = new THREE.Vector3().crossVectors(camForward, camera.up).normalize();
+            const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
+
+            const panVector = new THREE.Vector3()
+              .addScaledVector(camRight, -deltaMidX * panSpeed)
+              .addScaledVector(camUp, deltaMidY * panSpeed);
+
+            cameraTarget.add(panVector);
+            camera.position.add(panVector);
+          } else {
+            // In Play mode, two finger vertical pan adjusts camera height smoothly
+            playerCameraPitch = Math.max(0.05, Math.min(Math.PI / 2.2, playerCameraPitch - deltaMidY * 0.003));
+          }
+        }
+        prevMidpoint = currentMid;
       }
     };
 
-    const onTouchEnd = () => {
-      isMouseDown = false;
-      isDraggingCamera = false;
-      lastPinchDistance = 0;
+    const onTouchEnd = (e: TouchEvent) => {
+      const now = performance.now();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const record = touchMap.get(t.identifier);
+
+        // Tap Detection in Studio Mode (Selection raycast)
+        if (record && !isPlayModeRef.current) {
+          const moveDist = Math.hypot(t.clientX - record.startX, t.clientY - record.startY);
+          const duration = now - record.startTime;
+          if (moveDist < 10 && duration < 300) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseNDC.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
+            mouseNDC.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouseNDC, camera);
+
+            const interactiveMeshes: THREE.Object3D[] = [];
+            meshMapRef.current.forEach((obj) => interactiveMeshes.push(obj));
+            const hits = raycaster.intersectObjects(interactiveMeshes, true);
+            if (hits.length > 0) {
+              let hitObj: THREE.Object3D | null = hits[0].object;
+              while (hitObj && !hitObj.userData.instanceId && hitObj.parent) {
+                hitObj = hitObj.parent;
+              }
+              if (hitObj && hitObj.userData.instanceId) {
+                onSelectInstance(hitObj.userData.instanceId);
+                soundEngine.playClick();
+              }
+            } else {
+              onSelectInstance(null);
+            }
+          }
+        }
+
+        touchMap.delete(t.identifier);
+      }
+
+      if (touchMap.size === 0) {
+        prevPinchDist = 0;
+        prevMidpoint = { x: 0, y: 0 };
+        isDraggingCamera = false;
+        isMouseDown = false;
+      } else if (touchMap.size === 1) {
+        const remaining = Array.from(touchMap.values())[0];
+        mouseX = remaining.x;
+        mouseY = remaining.y;
+        prevPinchDist = 0;
+        prevMidpoint = { x: 0, y: 0 };
+      }
     };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (isPlayModeRef.current) {
-        playerCameraDistance = Math.max(4, Math.min(30, playerCameraDistance + e.deltaY * 0.02));
+        playerCameraDistance = Math.max(3.0, Math.min(35.0, playerCameraDistance + e.deltaY * 0.02));
       } else {
-        cameraSpherical.radius = Math.max(4, Math.min(250, cameraSpherical.radius + e.deltaY * 0.04));
+        cameraSpherical.radius = Math.max(4.0, Math.min(300.0, cameraSpherical.radius + e.deltaY * 0.04));
         camera.position.setFromSpherical(cameraSpherical).add(cameraTarget);
         camera.lookAt(cameraTarget);
       }
@@ -571,11 +677,17 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
       setTimeout(() => {
         const spawn = instancesRef.current.find((i) => i.className === 'SpawnLocation');
-        if (spawn) {
-          playerPos.set(spawn.position.x, spawn.position.y + 3, spawn.position.z);
-        } else {
-          playerPos.set(0, 5, 0);
+        const spawnPos = spawn
+          ? new THREE.Vector3(spawn.position.x, spawn.position.y + 3.0, spawn.position.z)
+          : new THREE.Vector3(0, 5, 0);
+        playerPos.copy(spawnPos);
+
+        if (physicsEngine.playerBody) {
+          physicsEngine.playerBody.position.set(spawnPos.x, spawnPos.y + 2.0, spawnPos.z);
+          physicsEngine.playerBody.velocity.set(0, 0, 0);
+          physicsEngine.playerBody.angularVelocity.set(0, 0, 0);
         }
+
         playerVelocity.set(0, 0, 0);
         onUpdatePlayerStats({ health: 100 });
         soundEngine.playSpawn();
@@ -585,9 +697,41 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
     // Render loop
     let frameId = 0;
     const clock = new THREE.Clock();
+    let prevPlayMode = false;
+    let footstepTimer = 0;
 
     function tick() {
       const delta = Math.min(clock.getDelta(), 0.1);
+
+      // Handle Play Mode transitions
+      if (isPlayModeRef.current && !prevPlayMode) {
+        prevPlayMode = true;
+        physicsEngine.isSimulationRunning = true;
+        const spawn = instancesRef.current.find((i) => i.className === 'SpawnLocation');
+        const startPos = spawn
+          ? new THREE.Vector3(spawn.position.x, spawn.position.y + 2.5, spawn.position.z)
+          : new THREE.Vector3(0, 4, 0);
+        playerPos.copy(startPos);
+        physicsEngine.setupPlayerBody(startPos);
+      } else if (!isPlayModeRef.current && prevPlayMode) {
+        prevPlayMode = false;
+        physicsEngine.isSimulationRunning = false;
+        physicsEngine.removePlayerBody();
+
+        // Restore dynamic objects to original placed coordinates
+        instancesRef.current.forEach((inst) => {
+          const m = meshMapRef.current.get(inst.id);
+          if (m) {
+            m.position.set(inst.position.x, inst.position.y, inst.position.z);
+            m.rotation.set(
+              (inst.rotation.x * Math.PI) / 180,
+              (inst.rotation.y * Math.PI) / 180,
+              (inst.rotation.z * Math.PI) / 180
+            );
+            physicsEngine.syncInstance(inst, m);
+          }
+        });
+      }
 
       // Studio Selection Box Update
       if (selectedIdRef.current && !isPlayModeRef.current) {
@@ -615,7 +759,6 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
 
       // Direction checks:
       // U = Up / Forward, D = Down / Backward, L = Left side, R = Right side
-      // Also support W (Up), S (Down), A (Left), and Arrow Keys:
       const isUp = Boolean(
         keysRef.current['KeyU'] ||
         keysRef.current['u'] ||
@@ -665,29 +808,40 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
         cameraTarget.add(move);
       }
 
+      // Step Cannon.js Physics Simulation
+      physicsEngine.step(delta);
+
       // PLAY MODE: Physics, Avatar controller, collisions
-      if (isPlayModeRef.current && avatarRef.current) {
+      if (isPlayModeRef.current && avatarRef.current && physicsEngine.playerBody) {
         avatarRef.current.root.visible = true;
+        const pBody = physicsEngine.playerBody;
         const stats = playerStatsRef.current;
         const speed = stats.walkSpeed || 16;
         const jumpImpulse = stats.jumpPower || 45;
 
         // Calculate input movement relative to camera yaw
-        let moveX = 0;
-        let moveZ = 0;
-        if (isUp) moveZ -= 1;    // U = Up / Forward
-        if (isDown) moveZ += 1;  // D = Down / Backward
-        if (isLeft) moveX -= 1;  // L = Left side
-        if (isRight) moveX += 1; // R = Right side
+        // Primary input: Touch Virtual Analog Joystick
+        const joy = joystickInputRef.current || { x: 0, y: 0 };
+        let moveX = joy.x;
+        let moveZ = joy.y; // -1 = forward (Up), +1 = backward (Down)
 
-        const isMoving = moveX !== 0 || moveZ !== 0;
+        // Blended keyboard fallback (WASD / U,D,L,R / Arrow keys)
+        if (isUp) moveZ -= 1;
+        if (isDown) moveZ += 1;
+        if (isLeft) moveX -= 1;
+        if (isRight) moveX += 1;
+
+        const inputMagnitude = Math.hypot(moveX, moveZ);
+        const isMoving = inputMagnitude > 0.05;
 
         if (isMoving) {
-          const inputDir = new THREE.Vector3(moveX, 0, moveZ).normalize();
+          const moveSpeed = speed * Math.min(1, inputMagnitude);
+          const inputDir = new THREE.Vector3(moveX / inputMagnitude, 0, moveZ / inputMagnitude);
           inputDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), playerYaw);
 
-          playerVelocity.x = inputDir.x * speed;
-          playerVelocity.z = inputDir.z * speed;
+          // Apply velocity directly to Cannon rigid body
+          pBody.velocity.x = inputDir.x * moveSpeed;
+          pBody.velocity.z = inputDir.z * moveSpeed;
 
           // Rotate character towards movement direction
           const targetCharYaw = Math.atan2(inputDir.x, inputDir.z);
@@ -697,125 +851,85 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
             14,
             delta
           );
+
+          // Footstep audio
+          footstepTimer += delta;
+          if (footstepTimer > 0.36) {
+            footstepTimer = 0;
+            soundEngine.playFootstep();
+          }
         } else {
-          playerVelocity.x = THREE.MathUtils.damp(playerVelocity.x, 0, 12, delta);
-          playerVelocity.z = THREE.MathUtils.damp(playerVelocity.z, 0, 12, delta);
+          pBody.velocity.x *= 0.78;
+          pBody.velocity.z *= 0.78;
         }
 
-        // Jump
-        if (keysRef.current['Space'] && isGrounded) {
-          playerVelocity.y = jumpImpulse;
-          isGrounded = false;
+        // Ground check: check vertical velocity or contact
+        const isGrounded = Math.abs(pBody.velocity.y) < 0.3 || pBody.position.y <= 2.2;
+
+        // Jump: triggered by touch on-screen jump button or space
+        const wantsJump = Boolean(isJumpPressedRef.current || keysRef.current['Space']);
+        if (wantsJump && isGrounded) {
+          pBody.velocity.y = jumpImpulse;
           soundEngine.playJump();
         }
 
-        // Gravity
-        playerVelocity.y -= 75 * delta;
+        // Current world position from Cannon body
+        playerPos.set(pBody.position.x, pBody.position.y - 1.8, pBody.position.z);
 
-        // Trial movement
-        const nextPos = playerPos.clone().addScaledVector(playerVelocity, delta);
-
-        // Simple AABB Box Collision with Solid / CanCollide Instances
-        isGrounded = false;
-        const playerRadius = 0.9;
-        const playerHeight = 4.8;
-
+        // Check interactive Roblox triggers (Coins, Pads, Trampolines, Hazards)
         for (const inst of instancesRef.current) {
+          const instPos = new THREE.Vector3(inst.position.x, inst.position.y, inst.position.z);
+          const distToPlayer = playerPos.distanceTo(instPos);
+
           // If instance is coin and intersects
-          if (inst.isCoin) {
-            const dist = nextPos.distanceTo(
-              new THREE.Vector3(inst.position.x, inst.position.y, inst.position.z)
-            );
-            if (dist < 2.5) {
-              soundEngine.playCoin();
-              onUpdatePlayerStats({
-                coins: (playerStatsRef.current.coins || 0) + (inst.coinValue || 10),
-              });
-              // Remove coin from scene
-              onUpdateInstance(inst.id, { transparency: 1, canCollide: false, isCoin: false });
-            }
+          if (inst.isCoin && distToPlayer < 2.5) {
+            soundEngine.playCoin();
+            onUpdatePlayerStats({
+              coins: (playerStatsRef.current.coins || 0) + (inst.coinValue || 10),
+            });
+            onUpdateInstance(inst.id, { transparency: 1, canCollide: false, isCoin: false });
           }
 
           // If instance is SpeedPad
-          if (inst.isSpeedPad) {
-            const dist = nextPos.distanceTo(
-              new THREE.Vector3(inst.position.x, inst.position.y, inst.position.z)
-            );
-            if (dist < 4.0) {
-              onUpdatePlayerStats({ walkSpeed: 32 });
-              setTimeout(() => {
-                onUpdatePlayerStats({ walkSpeed: 16 });
-              }, 4000);
-            }
+          if (inst.isSpeedPad && distToPlayer < 3.8) {
+            onUpdatePlayerStats({ walkSpeed: 32 });
+            setTimeout(() => {
+              onUpdatePlayerStats({ walkSpeed: 16 });
+            }, 4000);
           }
 
           // If instance is JumpPad / Trampoline
-          if (inst.isJumpPad) {
-            const dist = nextPos.distanceTo(
-              new THREE.Vector3(inst.position.x, inst.position.y, inst.position.z)
-            );
-            if (dist < 4.0 && Math.abs(nextPos.y - inst.position.y) < 2.5) {
-              soundEngine.playBounce();
-              playerVelocity.y = 70;
-              isGrounded = false;
-            }
+          if (inst.isJumpPad && distToPlayer < 3.8 && Math.abs(playerPos.y - instPos.y) < 2.5) {
+            soundEngine.playBounce();
+            pBody.velocity.y = 65; // High physics bounce
           }
 
           // If instance is Lava kill brick
           if (inst.isLava) {
-            const minX = inst.position.x - inst.size.x / 2 - playerRadius;
-            const maxX = inst.position.x + inst.size.x / 2 + playerRadius;
+            const minX = inst.position.x - inst.size.x / 2 - 1.0;
+            const maxX = inst.position.x + inst.size.x / 2 + 1.0;
             const minY = inst.position.y - inst.size.y / 2;
-            const maxY = inst.position.y + inst.size.y / 2 + playerHeight;
-            const minZ = inst.position.z - inst.size.z / 2 - playerRadius;
-            const maxZ = inst.position.z + inst.size.z / 2 + playerRadius;
+            const maxY = inst.position.y + inst.size.y / 2 + 4.0;
+            const minZ = inst.position.z - inst.size.z / 2 - 1.0;
+            const maxZ = inst.position.z + inst.size.z / 2 + 1.0;
 
             if (
-              nextPos.x >= minX &&
-              nextPos.x <= maxX &&
-              nextPos.y >= minY &&
-              nextPos.y <= maxY &&
-              nextPos.z >= minZ &&
-              nextPos.z <= maxZ
+              playerPos.x >= minX && playerPos.x <= maxX &&
+              playerPos.y >= minY && playerPos.y <= maxY &&
+              playerPos.z >= minZ && playerPos.z <= maxZ
             ) {
               respawnPlayer();
               break;
             }
           }
-
-          // Physical collisions (if canCollide is true)
-          if (inst.canCollide !== false) {
-            const minX = inst.position.x - inst.size.x / 2 - playerRadius;
-            const maxX = inst.position.x + inst.size.x / 2 + playerRadius;
-            const minZ = inst.position.z - inst.size.z / 2 - playerRadius;
-            const maxZ = inst.position.z + inst.size.z / 2 + playerRadius;
-            const topY = inst.position.y + inst.size.y / 2;
-            const bottomY = inst.position.y - inst.size.y / 2;
-
-            if (nextPos.x >= minX && nextPos.x <= maxX && nextPos.z >= minZ && nextPos.z <= maxZ) {
-              // Landing on top of part
-              if (playerPos.y >= topY - 0.5 && nextPos.y <= topY + 0.2) {
-                nextPos.y = topY;
-                playerVelocity.y = 0;
-                isGrounded = true;
-              }
-              // Hitting underside of part
-              else if (playerPos.y + playerHeight <= bottomY + 0.5 && nextPos.y + playerHeight >= bottomY) {
-                nextPos.y = bottomY - playerHeight;
-                playerVelocity.y = -2;
-              }
-            }
-          }
         }
 
         // Void kill check (fell off map)
-        if (nextPos.y < -35) {
+        if (pBody.position.y < -35) {
           respawnPlayer();
-        } else {
-          playerPos.copy(nextPos);
         }
 
-        // Apply position to avatar mesh
+        // Apply position to avatar mesh & animate limbs
         avatarRef.current.root.position.copy(playerPos);
         avatarRef.current.animate(isMoving, delta, speed);
 
@@ -871,6 +985,7 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
       if (!activeIds.has(id)) {
         scene.remove(mesh);
         currentMeshMap.delete(id);
+        physicsEngine.removeInstance(id);
       }
     });
 
@@ -1052,6 +1167,9 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           mat.opacity = 1 - (inst.transparency || 0);
         }
       }
+
+      // Synchronize with Cannon.js physics engine
+      physicsEngine.syncInstance(inst, mesh);
     });
   }, [instances]);
 

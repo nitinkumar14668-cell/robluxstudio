@@ -14,6 +14,18 @@
   - **Document Tabs**: Multi-tab workspace with `[🎮 Workspace]` and `[📄 Script.lua]` tabs.
   - **File Menu**: Save Place to `.rbxl` file, Open Place, and Publish to Roblox.
 
+- **⚡ Cannon.js Real-Time Rigid Body Physics**:
+  - Full integration of **Cannon.js** (`cannon-es`): real gravity (`-28 m/s²`), rigid body collisions, friction, and restitution.
+  - **Dynamic Unanchored Objects**: Push wooden crates pyramid, watch domino chains topple with physics, and kick bouncy beach balls.
+  - **Player Physics Body**: 65kg avatar capsule with momentum transfer that physically knocks and pushes unanchored objects.
+  - **Procedural Collision & Footstep Audio**: Material-based collision impact sounds (wood, metal, plastic) and walking footsteps via Web Audio API.
+  - **💥 Physics Blast Impulser**: Trigger explosive impulse waves that blast unanchored parts through the air!
+
+- **📱 Phone-Optimized Android & Desktop UI Modes**:
+  - **1-Tap UI Switch**: Toggle instantly between **`📱 Android / Mobile UI`** and **`💻 Desktop Studio UI`** in App Settings or TopBar.
+  - **Phone Layout**: Full-screen 3D viewport, ergonomic bottom dock, and sliding bottom sheets for Explorer, Properties, Toolbox, and Console.
+  - **Touch Thumb Controls**: On-screen D-Pad with **`U` (Up)**, **`D` (Down)**, **`L` (Left)**, **`R` (Right)**, and **`JUMP` (Space)** with adjustable opacity.
+
 - **3D World Building & Transform Tools**:
   - **Transform Gizmos**: Select (`1`), Move (`2`), Scale (`3`), and Rotate (`4`) with active 3D colored axis handles.
   - **Part Inserter**: Block, Sphere, Cylinder, Wedge, SpawnLocation, 🔥 Lava Kill Hazards, 🪙 Collectible Coins, ⚡ Trampolines, and Speed Boost Pads.

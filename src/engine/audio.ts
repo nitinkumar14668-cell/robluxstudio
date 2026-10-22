@@ -188,6 +188,102 @@ class RobloxAudioEngine {
       // Ignored
     }
   }
+
+  // Realistic Physics Collision Impact Sound (Cannon.js collision event)
+  playImpact(intensity: number, material: string = 'Plastic') {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const normalizedVol = Math.min(0.5, Math.max(0.05, (intensity / 20) * 0.4));
+
+      // Low thump
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      let baseFreq = 120;
+      if (material === 'Metal') baseFreq = 480;
+      else if (material === 'Wood') baseFreq = 220;
+      else if (material === 'Ice' || material === 'Glass') baseFreq = 650;
+
+      osc.type = material === 'Metal' ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.4, now + 0.12);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(800, now);
+
+      gain.gain.setValueAtTime(normalizedVol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } catch {
+      // Ignored
+    }
+  }
+
+  // Realistic footstep
+  playFootstep(material: string = 'Plastic') {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      let freq = 140;
+      if (material === 'Grass') freq = 90;
+      else if (material === 'Metal') freq = 360;
+
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + 0.05);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {
+      // Ignored
+    }
+  }
+
+  // Realistic physics explosion blast
+  playExplosion() {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.5);
+    } catch {
+      // Ignored
+    }
+  }
 }
 
 export const soundEngine = new RobloxAudioEngine();
+
